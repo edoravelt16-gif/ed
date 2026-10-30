@@ -1208,7 +1208,7 @@
         }
 
         function filterTable() {
-            const query = document.getElementById('searchInput').value.toLowerCase();
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
             const statusFilter = document.getElementById('filterStatus').value;
             const fileFilter = document.getElementById('filterSourceFile').value;
 
@@ -1218,15 +1218,25 @@
             const chkComplete = document.getElementById('chkComplete')?.checked ?? true;
 
             const filtered = processedData.filter(item => {
-                const matchQuery = item.noDom.toLowerCase().includes(query) ||
-                    item.site.toLowerCase().includes(query) ||
-                    item.noGR.toLowerCase().includes(query) ||
-                    item.item.toLowerCase().includes(query) ||
-                    item.sourceDomFile.toLowerCase().includes(query);
+                // 1. Filter Pencarian Text
+                const noDom = (item.noDom || '').toString().toLowerCase();
+                const site = (item.site || '').toString().toLowerCase();
+                const noGR = (item.noGR || '').toString().toLowerCase();
+                const itemDesc = (item.item || '').toString().toLowerCase();
+                const sourceFile = (item.sourceDomFile || '').toString().toLowerCase();
 
+                const matchQuery = !query || 
+                    noDom.includes(query) ||
+                    site.includes(query) ||
+                    noGR.includes(query) ||
+                    itemDesc.includes(query) ||
+                    sourceFile.includes(query);
+
+                // 2. Filter Dropdown Status & File
                 const matchStatus = statusFilter === 'ALL' || item.statusGR === statusFilter;
                 const matchFile = fileFilter === 'ALL' || item.sourceDomFile === fileFilter;
 
+                // 3. Filter Checkbox Multiple Choice
                 const isPending = item.statusGR === 'Pending';
                 const isPartial = item.statusGR === 'Partial' || item.selisih !== 0;
                 const isComplete = item.statusGR === 'Complete' && item.selisih === 0;
@@ -1237,6 +1247,7 @@
                 }
                 const isDelayed = leadTimeNum > 3;
 
+                // Logika penyaringan Checkbox: Item ditampilkan jika memenuhi salah satu opsi yang dicentang
                 let matchCheckboxes = false;
                 if (chkPending && isPending) matchCheckboxes = true;
                 if (chkPartial && isPartial) matchCheckboxes = true;
@@ -1247,6 +1258,14 @@
             });
 
             renderTable(filtered);
+        }
+
+        // Helper Utility untuk memeriksa baris header / footer saat pembacaan file
+        function isHeaderOrFooterRow(val) {
+            if (!val) return true;
+            const str = val.toString().toLowerCase().trim();
+            const invalidKeywords = ['no', 'number', 'material', 'description', 'total', 'grand total', 'subtotal', 'keterangan', 'inbound num', 'plant'];
+            return invalidKeywords.some(kw => str === kw);
         }
 
         function selectAllProblematicFilters(onlyProblems) {
