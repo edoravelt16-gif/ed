@@ -598,15 +598,18 @@
                         <div>
                             <div class="flex items-center gap-2">
                                 <span class="p-1.5 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs"><i data-lucide="truck" class="w-4 h-4"></i></span>
-                                <h2 class="font-extrabold text-xl text-white tracking-wide">LAPORAN HARIAN MONITORING DELIVERY TO GR</h2>
+                                <h2 class="font-extrabold text-base sm:text-lg text-white tracking-wide">LAPORAN HARIAN MONITORING DELIVERY TO GR</h2>
                             </div>
                             <p class="text-xs text-slate-300 font-semibold mt-1">
                                 LOCATION: <span class="text-emerald-400">DEPO SAMARINDA</span>
                             </p>
                         </div>
-                        <div class="text-right text-xs text-slate-400">
-                            <p class="font-bold text-emerald-400" id="reportDateText">Tanggal: 26/10/2026</p>
-                            <p class="text-[11px] text-slate-300 font-mono mt-0.5" id="reportSourceDomText">Sumber Update: -</p>
+                        <div class="flex flex-col items-end text-right text-xs">
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 whitespace-nowrap mb-1">
+                                Authorized by Sabil Amin
+                            </span>
+                            <p class="font-bold text-emerald-400 text-xs" id="reportDateText">Tanggal: 31/10/2026</p>
+                            <p class="text-[10px] text-slate-400 font-mono mt-0.5" id="reportSourceDomText">Sumber File: -</p>
                         </div>
                     </div>
 
@@ -679,10 +682,15 @@
 
                 <!-- SEKSI TAMBAHAN: INFORMASI REKAPITULASI DELIVERY TO GR (DILUAR CAPTURE AREA JPG - TIDAK IKUT TERDOWNLOAD) -->
                 <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-xs text-slate-300 space-y-3 font-mono" id="extraReportInfoArea">
-                    <div class="border-b border-slate-800 pb-2">
-                        <h4 class="font-bold text-emerald-400 text-sm">LAPORAN HARIAN MONITORING DELIVERY TO GR</h4>
-                        <p class="text-slate-400 text-[11px]">DEPO SAMARINDA</p>
-                        <p class="text-slate-400 text-[11px]" id="infoCutoffDate">Senin, 26 Oktober 2026</p>
+                    <div class="border-b border-slate-800 pb-2 flex items-center justify-between">
+                        <div>
+                            <h4 class="font-bold text-emerald-400 text-sm">LAPORAN HARIAN MONITORING DELIVERY TO GR</h4>
+                            <p class="text-slate-400 text-[11px]">DEPO SAMARINDA</p>
+                            <p class="text-slate-400 text-[11px]" id="infoCutoffDate">Senin, 26 Oktober 2026</p>
+                        </div>
+                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-sans">
+                            Authorized by Sabil Amin
+                        </span>
                     </div>
 
                     <div class="space-y-1">
@@ -692,9 +700,6 @@
                             <li>Goods Receipt: <span class="text-emerald-400 font-bold" id="infoGrItem">0 item (0.00%)</span></li>
                             <li>Pending GR & Selisih Qty GR: <span class="text-amber-400 font-bold" id="infoPendingPartialItem">0 item (0.00%)</span></li>
                         </ul>
-                        <div id="infoStatusAlert" class="mt-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-sans font-medium text-[11px] flex items-center gap-1.5">
-                            <span>✅</span> <span id="infoStatusAlertText">Status update monitoring pengiriman Depo Samarinda.</span>
-                        </div>
                     </div>
 
                     <div class="pt-2 border-t border-slate-800 text-[10px] text-slate-500 flex justify-between">
@@ -1576,6 +1581,7 @@
             const pendingItems = processedData.filter(d => d.statusGR === 'Pending').length;
             const partialItems = processedData.filter(d => d.statusGR === 'Partial').length;
             const completedPct = totalItems > 0 ? ((completedItems / totalItems) * 100).toFixed(1) : 0;
+            const outstandingTotal = pendingItems + partialItems;
 
             const now = new Date();
             const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -1588,8 +1594,61 @@
             document.getElementById('repKpiComplete').innerText = completedItems;
             document.getElementById('repKpiCompletePct').innerText = `${completedPct}% Sesuai`;
 
-            document.getElementById('repKpiPendingTotal').innerText = pendingItems + partialItems;
+            document.getElementById('repKpiPendingTotal').innerText = outstandingTotal;
             document.getElementById('repKpiPendingSubtext').innerText = `${pendingItems} Pending • ${partialItems} Selisih`;
+
+            // BANNERS DYNAMIC LOGIC (PERINGATAN VS MOTIVASI 100% ACH)
+            const banner = document.getElementById('reportMotivationBanner');
+            const infoAlert = document.getElementById('infoStatusAlert');
+            const infoAlertText = document.getElementById('infoStatusAlertText');
+
+            if (parseFloat(completedPct) === 100 && totalItems > 0) {
+                // Banner Motivasi & Apresiasi 100% Achievement
+                if (banner) {
+                    banner.className = "p-3.5 rounded-xl border bg-gradient-to-r from-emerald-950/80 via-teal-950/70 to-slate-900 border-emerald-500/40 text-emerald-200 flex items-center gap-3 shadow-lg shadow-emerald-950/40";
+                    banner.innerHTML = `
+                        <div class="p-2 rounded-xl bg-emerald-500 text-slate-950 font-bold shrink-0 shadow-md">
+                            <i data-lucide="award" class="w-6 h-6"></i>
+                        </div>
+                        <div class="space-y-0.5">
+                            <h4 class="font-extrabold text-white text-sm tracking-tight flex items-center gap-2">
+                                🌟 OUTSTANDING PERFORMANCE - 100% GR FULFILLMENT ACHIEVED!
+                            </h4>
+                            <p class="text-xs text-emerald-300/90 leading-relaxed">
+                                Selamat & apresiasi setinggi-tingginya untuk seluruh Tim Logistik & Operasional Depo Samarinda! Seluruh <strong>${totalItems} item pengiriman</strong> telah terekonsiliasi sempurna (Good Receipt 100%). Tetap pertahankan akurasi dan keandalan layanan terbaik! 🚀
+                            </p>
+                        </div>
+                    `;
+                }
+
+                if (infoAlert && infoAlertText) {
+                    infoAlert.className = "mt-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-sans font-medium text-[11px] flex items-center gap-2";
+                    infoAlertText.innerHTML = "🎉 <strong>PERFORMANCE PERFECT:</strong> 100% Delivery to GR terpenuhi secara sempurna tanpa selisih atau pending!";
+                }
+            } else {
+                // Banner Peringatan Ada Pending / Selisih GR
+                if (banner) {
+                    banner.className = "p-3.5 rounded-xl border bg-gradient-to-r from-amber-950/80 via-rose-950/60 to-slate-900 border-amber-500/40 text-amber-200 flex items-start gap-3 shadow-lg shadow-amber-950/30";
+                    banner.innerHTML = `
+                        <div class="p-2 rounded-xl bg-amber-500 text-slate-950 font-bold shrink-0 mt-0.5 shadow-md">
+                            <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                        </div>
+                        <div class="space-y-0.5">
+                            <h4 class="font-extrabold text-amber-300 text-xs uppercase tracking-wider flex items-center gap-2">
+                                ⚠️ PERINGATAN: MASIH TERDAPAT OUTSTANDING GR (${outstandingTotal} ITEM)
+                            </h4>
+                            <p class="text-xs text-amber-100/90 leading-relaxed">
+                                Terdapat <strong>${pendingItems} item Pending GR</strong> dan <strong>${partialItems} item Selisih Qty GR</strong> yang memerlukan follow-up segera ke Site Tujuan. Mohon pastikan konfirmasi penerimaan fisik barang ditingkatkan agar pencapaian target rekonsiliasi dapat optimal.
+                            </p>
+                        </div>
+                    `;
+                }
+
+                if (infoAlert && infoAlertText) {
+                    infoAlert.className = "mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 font-sans font-medium text-[11px] flex items-center gap-2";
+                    infoAlertText.innerHTML = `⚠️ <strong>ACTION REQUIRED:</strong> Terdapat ${outstandingTotal} item pengiriman (${(100 - completedPct).toFixed(1)}%) yang masih pending atau memiliki selisih kuantitas.`;
+                }
+            }
 
             // Populate Report Breakdown Table
             const sites = [...new Set(processedData.map(d => d.site))];
