@@ -1577,7 +1577,11 @@
             const partialItems = processedData.filter(d => d.statusGR === 'Partial').length;
             const completedPct = totalItems > 0 ? ((completedItems / totalItems) * 100).toFixed(1) : 0;
 
-            document.getElementById('reportDateText').innerText = `Tanggal: ${new Date().toLocaleDateString('id-ID')}`;
+            const now = new Date();
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const formattedCurrentDate = now.toLocaleDateString('id-ID', dateOptions);
+
+            document.getElementById('reportDateText').innerText = `Tanggal: ${now.toLocaleDateString('id-ID')}`;
             document.getElementById('reportSourceDomText').innerText = `Sumber File: ${domFilesList.length} DOM Files`;
 
             document.getElementById('repKpiTotal').innerText = totalItems;
@@ -1611,7 +1615,8 @@
                 `;
             }).join('');
 
-            // Extra Report Info Text below capture area
+            // Extra Report Info Text below capture area (Up-to-Date Date Generation)
+            document.getElementById('infoCutoffDate').innerText = formattedCurrentDate;
             document.getElementById('infoTotalDomItem').innerText = `${totalItems} item (100.00%)`;
             document.getElementById('infoGrItem').innerText = `${completedItems} item (${completedPct}%)`;
             document.getElementById('infoPendingPartialItem').innerText = `${pendingItems + partialItems} item (${(100 - completedPct).toFixed(1)}%)`;
