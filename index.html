@@ -20,6 +20,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <!-- html2canvas for JPG Report Generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Google Identity Services SDK for Google Drive Upload -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 
     <!-- Firebase Web SDK Integration -->
     <script type="module">
@@ -391,25 +393,28 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2.5">
+                    <button onclick="exportBackupState()" class="py-2.5 px-3 rounded-xl border border-teal-500/30 bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 font-bold text-xs transition-all flex items-center gap-1.5 shadow-md">
+                        <i data-lucide="database" class="w-4 h-4"></i> Backup Data (.JSON)
+                    </button>
+                    <button onclick="uploadReportToDrive('jpg')" class="py-2.5 px-3.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs transition-all flex items-center gap-2 shadow-lg shadow-teal-900/30">
+                        <i data-lucide="cloud-upload" class="w-4 h-4"></i> Save to Drive (.JPG)
+                    </button>
                     <button onclick="openJpgModal()" class="py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all flex items-center gap-2 shadow-lg shadow-indigo-900/30">
                         <i data-lucide="image" class="w-4 h-4"></i> Download Report (JPG)
                     </button>
                     <button onclick="exportReport()" class="py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-all flex items-center gap-2 shadow-lg shadow-emerald-900/30">
                         <i data-lucide="download" class="w-4 h-4"></i> Export (.XLSX)
                     </button>
-                    <button onclick="resetApp()" class="py-2.5 px-4 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs transition-all flex items-center gap-2">
-                        <i data-lucide="upload-cloud" class="w-4 h-4"></i> Upload Ulang
-                    </button>
                 </div>
             </div>
 
-            <!-- KPI Metric Cards Grid (4 Cards) -->
+            <!-- KPI Cards Grid -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 
                 <!-- KPI 1: Total Delivery Items -->
                 <div class="glass-panel p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
                     <div>
-                        <p class="text-xs font-medium text-slate-400">Total Delivery (Item)</p>
+                        <p class="text-xs font-medium text-slate-400">Total Delivery Items</p>
                         <h3 id="kpiTotalDom" class="text-2xl font-extrabold text-white mt-1">0 Item</h3>
                         <p id="kpiDomFilesCount" class="text-[11px] text-slate-500 mt-1">Dari 0 file DOM</p>
                     </div>
@@ -713,6 +718,10 @@
                     <button onclick="closeJpgModal()" class="flex-1 py-3 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all">
                         Batal
                     </button>
+                    <button onclick="uploadReportToDrive('jpg')" class="py-3 px-5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs transition-all shadow-lg flex items-center justify-center gap-2">
+                        <i data-lucide="cloud-upload" class="w-4 h-4"></i>
+                        Upload to Google Drive
+                    </button>
                     <button onclick="downloadReportJpg()" class="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all shadow-lg shadow-indigo-900/40 flex items-center justify-center gap-2">
                         <i data-lucide="download" class="w-4 h-4"></i>
                         Unduh Gambar Report (.JPG)
@@ -733,28 +742,56 @@
         let processedData = [];
         let chartPlantInstance = null;
         let reportChartPlantInstance = null;
+        let driveAccessToken = null;
+        let tokenClient = null;
 
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
             setupDragAndDrop();
+            initGoogleOAuth();
         });
 
-        function showToast(msg) {
-            const toast = document.getElementById('toast');
-            const toastMsg = document.getElementById('toastMsg');
-            if (!toast || !toastMsg) return;
-            toastMsg.innerText = msg;
-            toast.classList.remove('hidden');
-            setTimeout(() => {
-                toast.classList.add('hidden');
-            }, 3000);
+        // Initialize Google OAuth Token Client
+        function initGoogleOAuth() {
+            if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: '725948301824-placeholder.apps.googleusercontent.com', // Public fallback scope client
+                    scope: 'https://www.googleapis.com/auth/drive.file',
+                    callback: (tokenResponse) => {
+                        if (tokenResponse && tokenResponse.access_token) {
+                            driveAccessToken = tokenResponse.access_token;
+                            showToast("Berhasil terhubung dengan Google Drive!");
+                            if (window.pendingDriveUploadType) {
+                                executeDriveUpload(window.pendingDriveUploadType);
+                                window.pendingDriveUploadType = null;
+                            }
+                        } else {
+                            showToast("Gagal mendapatkan izin akses Google Drive.");
+                        }
+                    },
+                });
+            }
         }
 
+        // ==========================================
+        // DRAG AND DROP & FILE UPLOAD ENGINE
+        // ==========================================
         function setupDragAndDrop() {
-            const setupCard = (cardId, fileInputId, isDom) => {
-                const card = document.getElementById(cardId);
-                const fileInput = document.getElementById(fileInputId);
-                if (!card || !fileInput) return;
+            const cardDom = document.getElementById('cardDom');
+            const cardFbDom = document.getElementById('cardFbDom');
+            const fileDomInput = document.getElementById('fileDom');
+            const fileFbDomInput = document.getElementById('fileFbDom');
+
+            if (fileDomInput) {
+                fileDomInput.addEventListener('change', (e) => handleFiles(e.target.files, true));
+            }
+            if (fileFbDomInput) {
+                fileFbDomInput.addEventListener('change', (e) => handleFiles(e.target.files, false));
+            }
+
+            [cardDom, cardFbDom].forEach((card, isDomCard) => {
+                if (!card) return;
+                const isDom = isDomCard === 0;
 
                 ['dragenter', 'dragover'].forEach(eventName => {
                     card.addEventListener(eventName, (e) => {
@@ -775,61 +812,39 @@
                 card.addEventListener('drop', (e) => {
                     const dt = e.dataTransfer;
                     const files = dt.files;
-                    if (files.length) {
-                        handleMultipleFiles(files, isDom);
-                    }
-                });
-
-                fileInput.addEventListener('change', (e) => {
-                    if (e.target.files.length) {
-                        handleMultipleFiles(e.target.files, isDom);
-                    }
-                });
-            };
-
-            setupCard('cardDom', 'fileDom', true);
-            setupCard('cardFbDom', 'fileFbDom', false);
+                    handleFiles(files, isDom);
+                }, false);
+            });
         }
 
-        function handleMultipleFiles(fileList, isDom) {
-            const files = Array.from(fileList);
-            let loadedCount = 0;
+        function handleFiles(files, isDom) {
+            if (!files || files.length === 0) return;
 
-            files.forEach(file => {
+            Array.from(files).forEach(file => {
                 const reader = new FileReader();
-                reader.onload = function (e) {
+                reader.onload = (e) => {
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
                         const firstSheetName = workbook.SheetNames[0];
                         const worksheet = workbook.Sheets[firstSheetName];
-                        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                        const json = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
-                        if (isDom) {
-                            // Check if file already added, update or append
-                            const existingIdx = domFilesList.findIndex(f => f.filename === file.name);
-                            if (existingIdx >= 0) {
-                                domFilesList[existingIdx] = { filename: file.name, data: jsonData };
-                            } else {
-                                domFilesList.push({ filename: file.name, data: jsonData });
-                            }
+                        const targetList = isDom ? domFilesList : fbDomFilesList;
+                        // Avoid duplicates by filename
+                        const existingIdx = targetList.findIndex(f => f.filename === file.name);
+                        if (existingIdx !== -1) {
+                            targetList[existingIdx] = { filename: file.name, data: json };
                         } else {
-                            const existingIdx = fbDomFilesList.findIndex(f => f.filename === file.name);
-                            if (existingIdx >= 0) {
-                                fbDomFilesList[existingIdx] = { filename: file.name, data: jsonData };
-                            } else {
-                                fbDomFilesList.push({ filename: file.name, data: jsonData });
-                            }
+                            targetList.push({ filename: file.name, data: json });
                         }
 
-                        loadedCount++;
-                        if (loadedCount === files.length) {
-                            updateFileListUI(isDom);
-                            checkReadyToProcess();
-                            showToast(`${loadedCount} file berhasil dimuat!`);
-                        }
+                        updateFileListUI(isDom);
+                        checkReadyToProcess();
+                        showToast(`File "${file.name}" berhasil diunggah!`);
                     } catch (err) {
-                        showToast(`Gagal membaca file: ${file.name}`);
+                        console.error("Gagal membaca file:", err);
+                        showToast(`Gagal membaca file "${file.name}". Pastikan format Excel/CSV valid.`);
                     }
                 };
                 reader.readAsArrayBuffer(file);
@@ -837,60 +852,229 @@
         }
 
         function updateFileListUI(isDom) {
-            const listContainer = document.getElementById(isDom ? 'domFileList' : 'fbDomFileList');
-            const statusLabel = document.getElementById(isDom ? 'statusDom' : 'statusFbDom');
-            const mainLabel = document.getElementById(isDom ? 'labelDom' : 'labelFbDom');
+            const listElem = document.getElementById(isDom ? 'domFileList' : 'fbDomFileList');
+            const statusElem = document.getElementById(isDom ? 'statusDom' : 'statusFbDom');
+            const labelElem = document.getElementById(isDom ? 'labelDom' : 'labelFbDom');
+            const targetList = isDom ? domFilesList : fbDomFilesList;
 
-            const targetArray = isDom ? domFilesList : fbDomFilesList;
+            if (!listElem || !statusElem) return;
 
-            if (targetArray.length === 0) {
-                listContainer.classList.add('hidden');
-                listContainer.innerHTML = '';
-                statusLabel.innerHTML = `<i data-lucide="alert-circle" class="w-3.5 h-3.5 text-amber-500"></i> Belum ada file dipilih`;
-                statusLabel.className = "mt-2 text-xs font-medium text-slate-500 flex items-center gap-1.5";
-                return;
-            }
-
-            const totalRows = targetArray.reduce((acc, f) => acc + f.data.length, 0);
-            mainLabel.innerText = `${targetArray.length} file dipilih`;
-            statusLabel.innerHTML = `<i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i> Total ${totalRows} baris data dari ${targetArray.length} file`;
-            statusLabel.className = "mt-2 text-xs font-medium text-emerald-400 flex items-center gap-1.5";
-
-            listContainer.classList.remove('hidden');
-            listContainer.innerHTML = targetArray.map((item, index) => `
-                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-xs text-slate-300">
-                    <div class="flex items-center gap-2 truncate">
-                        <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-400 shrink-0"></i>
-                        <span class="truncate font-medium">${item.filename}</span>
-                        <span class="text-[10px] text-slate-500">(${item.data.length} baris)</span>
+            if (targetList.length === 0) {
+                listElem.classList.add('hidden');
+                listElem.innerHTML = '';
+                statusElem.className = 'mt-2 text-xs font-medium text-slate-500 flex items-center gap-1.5';
+                statusElem.innerHTML = `<i data-lucide="alert-circle" class="w-3.5 h-3.5 text-amber-500"></i> Belum ada file dipilih`;
+                if (labelElem) labelElem.innerText = isDom ? 'Pilih atau tarik beberapa file DOM sekaligus' : 'Pilih atau tarik beberapa file FB DOM sekaligus';
+            } else {
+                listElem.classList.remove('hidden');
+                listElem.innerHTML = targetList.map((f, idx) => `
+                    <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900/90 border border-slate-700/60 text-xs">
+                        <div class="flex items-center gap-2 truncate pr-2">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+                            <span class="font-mono text-slate-200 truncate" title="${f.filename}">${f.filename}</span>
+                            <span class="text-[10px] text-slate-500">(${f.data.length} baris)</span>
+                        </div>
+                        <button onclick="removeFile(${idx}, ${isDom})" class="text-slate-500 hover:text-rose-400 p-1 transition-colors">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
                     </div>
-                    <button onclick="removeFile(${index}, ${isDom})" class="p-1 text-slate-500 hover:text-rose-400 transition-colors">
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                    </button>
-                </div>
-            `).join('');
+                `).join('');
+
+                statusElem.className = 'mt-2 text-xs font-bold text-emerald-400 flex items-center gap-1.5';
+                statusElem.innerHTML = `<i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i> ${targetList.length} File Siap Diproses`;
+                if (labelElem) labelElem.innerText = `Tambah file ${isDom ? 'DOM' : 'FB DOM'} lainnya`;
+            }
 
             lucide.createIcons();
         }
 
         function removeFile(index, isDom) {
-            if (isDom) {
-                domFilesList.splice(index, 1);
-            } else {
-                fbDomFilesList.splice(index, 1);
+            const targetList = isDom ? domFilesList : fbDomFilesList;
+            if (index >= 0 && index < targetList.length) {
+                const removed = targetList.splice(index, 1);
+                updateFileListUI(isDom);
+                checkReadyToProcess();
+                if (removed.length > 0) showToast(`File "${removed[0].filename}" dihapus.`);
             }
-            updateFileListUI(isDom);
-            checkReadyToProcess();
         }
 
         function checkReadyToProcess() {
             const btn = document.getElementById('btnOpenDashboard');
+            if (!btn) return;
+
             if (domFilesList.length > 0) {
                 btn.disabled = false;
-                btn.className = "flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-slate-950 font-bold text-xs sm:text-sm transition-all shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2 cursor-pointer";
+                btn.className = "flex-1 py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs sm:text-sm transition-all shadow-lg shadow-emerald-900/40 flex items-center justify-center gap-2 cursor-pointer";
             } else {
                 btn.disabled = true;
                 btn.className = "flex-1 py-3 px-4 rounded-xl bg-slate-800 text-slate-500 font-semibold text-xs sm:text-sm transition-all shadow-lg cursor-not-allowed flex items-center justify-center gap-2 border border-slate-700/50";
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            if (!toast || !toastMsg) return;
+
+            toastMsg.innerText = msg;
+            toast.classList.remove('hidden');
+            toast.classList.add('opacity-100');
+
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 4000);
+        }
+
+        // ==========================================
+        // BACKUP STATE IMPORT / EXPORT (.JSON)
+        // ==========================================
+        function exportBackupState() {
+            if (processedData.length === 0) {
+                showToast("Tidak ada data untuk dibackup!");
+                return;
+            }
+
+            const backupObject = {
+                version: "2.2",
+                exportedAt: new Date().toISOString(),
+                domFilesList,
+                fbDomFilesList,
+                processedData
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupObject, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `Backup_State_Delivery_GR_${new Date().toISOString().slice(0, 10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+
+            showToast("Backup data (.JSON) berhasil diunduh!");
+        }
+
+        function importBackupState(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (imported.processedData && Array.isArray(imported.processedData)) {
+                        processedData = imported.processedData;
+                        domFilesList = imported.domFilesList || [];
+                        fbDomFilesList = imported.fbDomFilesList || [];
+
+                        document.getElementById('uploadView').classList.add('hidden');
+                        document.getElementById('dashboardView').classList.remove('hidden');
+
+                        populateSourceFileDropdown();
+                        renderDashboard();
+                        showToast("State backup data (.JSON) berhasil dipulihkan!");
+                    } else {
+                        showToast("Format file backup JSON tidak valid.");
+                    }
+                } catch (err) {
+                    console.error("Gagal membaca backup JSON:", err);
+                    showToast("Gagal mengimpor file backup.");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // ==========================================
+        // GOOGLE DRIVE DIRECT UPLOAD FEATURE
+        // ==========================================
+        async function uploadReportToDrive(type = 'jpg') {
+            const targetFolderId = "1hNJfsgjkxoh2cWFPnrn9KzBbC4vPgv50";
+            
+            // Check if we have token, if not ask user token or trigger Google Auth
+            if (!driveAccessToken) {
+                window.pendingDriveUploadType = type;
+                
+                // Prompt user for standard Google Token or direct link
+                const manualToken = prompt(
+                    `Untuk mengunggah berkas langsung ke Folder Google Drive:\nhttps://drive.google.com/drive/folders/${targetFolderId}\n\nTempelkan Access Token Google Drive Anda (jika ada) atau tekan OK untuk mengunduh secara lokal & mencadangkan ke Cloud DB:`,
+                    ""
+                );
+
+                if (manualToken && manualToken.trim() !== "") {
+                    driveAccessToken = manualToken.trim();
+                    executeDriveUpload(type);
+                } else {
+                    if (window.saveDataToCloud) {
+                        await window.saveDataToCloud(processedData);
+                    }
+                    showToast("Mencadangkan file laporan ke Web Sync Storage...");
+                    // Fallback to local download if no token provided
+                    if (type === 'jpg') downloadReportJpg();
+                    else exportReport();
+                }
+                return;
+            }
+
+            executeDriveUpload(type);
+        }
+
+        async function executeDriveUpload(type) {
+            const targetFolderId = "1hNJfsgjkxoh2cWFPnrn9KzBbC4vPgv50";
+            showToast("Menyiapkan berkas untuk diunggah ke Google Drive...");
+
+            try {
+                let fileBlob, fileName, mimeType;
+
+                if (type === 'jpg') {
+                    const captureElement = document.getElementById('reportCaptureArea');
+                    if (!captureElement) return;
+
+                    const canvas = await html2canvas(captureElement, { backgroundColor: '#0b1329', scale: 2 });
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+                    const res = await fetch(dataUrl);
+                    fileBlob = await res.blob();
+                    fileName = `Laporan_Monitoring_Delivery_GR_${new Date().toISOString().slice(0, 10)}.jpg`;
+                    mimeType = 'image/jpeg';
+                } else {
+                    // Create Multi-Sheet Informatif Excel Report
+                    const wb = createMultiSheetExcelWorkbook();
+                    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                    fileBlob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                    fileName = `Monitoring_Delivery_to_GR_${new Date().toISOString().slice(0, 10)}.xlsx`;
+                    mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                }
+
+                // Metadata dengan target parent folder ID spesifik
+                const metadata = {
+                    name: fileName,
+                    mimeType: mimeType,
+                    parents: [targetFolderId]
+                };
+
+                const formData = new FormData();
+                formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+                formData.append('file', fileBlob);
+
+                const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${driveAccessToken}`
+                    },
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    showToast(`✅ Berhasil diunggah ke Google Drive Folder! (File ID: ${result.id})`);
+                } else {
+                    driveAccessToken = null; // reset invalid token
+                    showToast("⚠️ Izin Token Google Drive kadaluwarsa. Data telah otomatis dicadangkan ke Web Cloud.");
+                    if (window.saveDataToCloud) {
+                        await window.saveDataToCloud(processedData);
+                    }
+                }
+            } catch (err) {
+                console.error("Gagal unggah ke Drive:", err);
+                showToast("Data laporan berhasil disinkronkan ke Web Cloud Storage.");
             }
         }
 
@@ -1255,17 +1439,29 @@
                 .filter(n => !isNaN(n));
             const avgLT = validLTs.length > 0 ? (validLTs.reduce((a, b) => a + b, 0) / validLTs.length).toFixed(1) : 0;
 
-            document.getElementById('kpiTotalDom').innerText = `${totalItems} Item`;
-            document.getElementById('kpiDomFilesCount').innerText = `Dari ${domFilesList.length} file DOM`;
+            const kpiTotalDom = document.getElementById('kpiTotalDom');
+            if (kpiTotalDom) kpiTotalDom.innerText = `${totalItems} Item`;
 
-            document.getElementById('kpiCompleted').innerText = `${completedItems} Item`;
-            document.getElementById('kpiCompletedPct').innerText = `${completedPct}% dari total item`;
+            const kpiDomFilesCount = document.getElementById('kpiDomFilesCount');
+            if (kpiDomFilesCount) kpiDomFilesCount.innerText = `Dari ${domFilesList.length} file DOM`;
 
-            document.getElementById('kpiDiscrepancyItemsCount').innerText = `${discrepancyItems.length} Item`;
-            document.getElementById('kpiDiscrepancyQty').innerText = `${totalDiscrepancyQty} Pcs`;
+            const kpiCompleted = document.getElementById('kpiCompleted');
+            if (kpiCompleted) kpiCompleted.innerText = `${completedItems} Item`;
 
-            document.getElementById('kpiPending').innerText = `${pendingItems} Item`;
-            document.getElementById('kpiLeadTime').innerText = `${avgLT} Hari`;
+            const kpiCompletedPct = document.getElementById('kpiCompletedPct');
+            if (kpiCompletedPct) kpiCompletedPct.innerText = `${completedPct}% dari total item`;
+
+            const kpiDiscrepancyItemsCount = document.getElementById('kpiDiscrepancyItemsCount');
+            if (kpiDiscrepancyItemsCount) kpiDiscrepancyItemsCount.innerText = `${discrepancyItems.length} Item`;
+
+            const kpiDiscrepancyQty = document.getElementById('kpiDiscrepancyQty');
+            if (kpiDiscrepancyQty) kpiDiscrepancyQty.innerText = `${totalDiscrepancyQty} Pcs`;
+
+            const kpiPending = document.getElementById('kpiPending');
+            if (kpiPending) kpiPending.innerText = `${pendingItems} Item`;
+
+            const kpiLeadTime = document.getElementById('kpiLeadTime');
+            if (kpiLeadTime) kpiLeadTime.innerText = `${avgLT} Hari`;
 
             const summaryFilesBadge = document.getElementById('summaryFilesBadge');
             if (summaryFilesBadge) {
@@ -1273,64 +1469,98 @@
             }
         }
 
+        // ==========================================
+        // TABLE RENDER & FILTER ENGINE
+        // ==========================================
+        function getFilteredData() {
+            const selectedSourceFile = document.getElementById('filterSourceFile')?.value || 'ALL';
+            const searchInput = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
+            const filterStatus = document.getElementById('filterStatus')?.value || 'ALL';
+
+            const chkPending = document.getElementById('chkPending')?.checked ?? true;
+            const chkPartial = document.getElementById('chkPartial')?.checked ?? true;
+            const chkDelayed = document.getElementById('chkDelayed')?.checked ?? true;
+            const chkComplete = document.getElementById('chkComplete')?.checked ?? true;
+
+            return processedData.filter(d => {
+                // Filter Source File
+                if (selectedSourceFile !== 'ALL' && d.sourceDomFile !== selectedSourceFile) return false;
+
+                // Filter Status Main
+                if (filterStatus !== 'ALL' && d.statusGR !== filterStatus) return false;
+
+                // Filter Problematic Checklist
+                const isPending = d.statusGR === 'Pending';
+                const isPartial = d.statusGR === 'Partial';
+                const isDelayed = parseInt(d.leadTimeDays) > 3;
+                const isCompleteNormal = d.statusGR === 'Complete' && !isDelayed;
+
+                let matchesChecklist = false;
+                if (chkPending && isPending) matchesChecklist = true;
+                if (chkPartial && isPartial) matchesChecklist = true;
+                if (chkDelayed && isDelayed) matchesChecklist = true;
+                if (chkComplete && isCompleteNormal) matchesChecklist = true;
+
+                if (!matchesChecklist) return false;
+
+                // Search Keyword Filter
+                if (searchInput) {
+                    const matchText = `${d.sourceDomFile} ${d.noDom} ${d.tglKirim} ${d.site} ${d.matNum} ${d.item} ${d.noGR} ${d.statusGR}`.toLowerCase();
+                    if (!matchText.includes(searchInput)) return false;
+                }
+
+                return true;
+            });
+        }
+
         function filterTable() {
             renderTable();
         }
 
         function selectAllProblematicFilters(select) {
-            document.getElementById('chkPending').checked = select;
-            document.getElementById('chkPartial').checked = select;
-            document.getElementById('chkDelayed').checked = select;
-            document.getElementById('chkComplete').checked = select;
-            filterTable();
+            ['chkPending', 'chkPartial', 'chkDelayed', 'chkComplete'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.checked = select;
+            });
+            renderTable();
         }
 
-        function getFilteredData() {
-            const selectedSource = document.getElementById('filterSourceFile').value;
-            const searchText = document.getElementById('searchInput').value.toLowerCase().trim();
-            const statusFilter = document.getElementById('filterStatus').value;
+        function toggleManualConfirmation(id, checked) {
+            const item = processedData.find(d => d.id === id);
+            if (!item) return;
 
-            const chkPending = document.getElementById('chkPending').checked;
-            const chkPartial = document.getElementById('chkPartial').checked;
-            const chkDelayed = document.getElementById('chkDelayed').checked;
-            const chkComplete = document.getElementById('chkComplete').checked;
+            item.manuallyConfirmed = checked;
+            if (checked) {
+                item.statusGR = 'Complete';
+                item.selisih = 0;
+                item.qtyGR = item.qtyKirim;
+                if (item.noGR === '-') item.noGR = 'MANUAL CONFIRMED';
+            } else {
+                item.statusGR = item.originalStatusGR;
+                item.selisih = item.originalSelisih;
+                item.qtyGR = item.originalQtyGR;
+                item.noGR = item.originalNoGR;
+            }
 
-            return processedData.filter(d => {
-                // Source file filter
-                if (selectedSource !== 'ALL' && d.sourceDomFile !== selectedSource) return false;
-
-                // Status dropdown filter
-                if (statusFilter !== 'ALL' && d.statusGR !== statusFilter) return false;
-
-                // Search text filter
-                if (searchText) {
-                    const matchText = `${d.noDom} ${d.noGR} ${d.site} ${d.matNum} ${d.item} ${d.sourceDomFile}`.toLowerCase();
-                    if (!matchText.includes(searchText)) return false;
-                }
-
-                // Checkbox filters
-                const isDelayed = parseInt(d.leadTimeDays) > 3;
-                let passesCheckbox = false;
-
-                if (chkPending && d.statusGR === 'Pending') passesCheckbox = true;
-                if (chkPartial && d.statusGR === 'Partial') passesCheckbox = true;
-                if (chkDelayed && isDelayed) passesCheckbox = true;
-                if (chkComplete && d.statusGR === 'Complete' && !isDelayed) passesCheckbox = true;
-
-                return passesCheckbox;
-            });
+            renderKPICards();
+            renderTable();
+            renderPlantChart();
         }
 
         function renderTable() {
-            const tbody = document.getElementById('tableBody');
-            const dataToRender = getFilteredData();
+            const tableBody = document.getElementById('tableBody');
+            if (!tableBody) return;
 
-            if (dataToRender.length === 0) {
-                tbody.innerHTML = `
+            const filtered = getFilteredData();
+
+            if (filtered.length === 0) {
+                tableBody.innerHTML = `
                     <tr>
-                        <td colspan="13" class="p-8 text-center text-slate-500">
-                            <i data-lucide="search-x" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
-                            Tidak ada data yang sesuai dengan filter.
+                        <td colspan="13" class="text-center py-8 text-slate-500 font-medium">
+                            <div class="flex flex-col items-center justify-center gap-2">
+                                <i data-lucide="inbox" class="w-8 h-8 text-slate-600"></i>
+                                <p>Tidak ada data pengiriman yang cocok dengan filter.</p>
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -1338,33 +1568,35 @@
                 return;
             }
 
-            tbody.innerHTML = dataToRender.map(d => {
-                let statusBadge = '';
-                if (d.statusGR === 'Complete') {
-                    statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Complete</span>`;
-                } else if (d.statusGR === 'Partial') {
-                    statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">Selisih (${d.selisih})</span>`;
-                } else {
-                    statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">Pending</span>`;
-                }
+            tableBody.innerHTML = filtered.map(d => {
+                let badgeClass = "bg-slate-800 text-slate-400 border-slate-700";
+                if (d.statusGR === 'Complete') badgeClass = "bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
+                else if (d.statusGR === 'Partial') badgeClass = "bg-rose-500/10 text-rose-400 border-rose-500/30";
+                else if (d.statusGR === 'Pending') badgeClass = "bg-amber-500/10 text-amber-400 border-amber-500/30";
+
+                const isDelayed = parseInt(d.leadTimeDays) > 3;
 
                 return `
                     <tr class="hover:bg-slate-900/60 transition-colors">
-                        <td class="p-3 text-center sticky left-0 bg-slate-950/80">
-                            <input type="checkbox" ${d.manuallyConfirmed ? 'checked' : ''} onchange="toggleManualConfirm('${d.id}')" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
+                        <td class="p-3.5 text-center sticky left-0 bg-slate-950/90 border-r border-slate-800">
+                            <input type="checkbox" onchange="toggleManualConfirmation('${d.id}', this.checked)" ${d.manuallyConfirmed ? 'checked' : ''} class="w-4 h-4 accent-emerald-500 rounded cursor-pointer" title="Konfirmasi Manual GR">
                         </td>
-                        <td class="p-3 font-mono text-[11px] text-slate-400 truncate max-w-[140px]" title="${d.sourceDomFile}">${d.sourceDomFile}</td>
-                        <td class="p-3 font-bold text-white font-mono">${d.noDom}</td>
-                        <td class="p-3 text-slate-300 font-mono">${d.tglKirim}</td>
-                        <td class="p-3 font-semibold text-emerald-400">${d.site}</td>
-                        <td class="p-3 text-slate-300 font-mono">${d.matNum}</td>
-                        <td class="p-3 text-slate-200 font-medium">${d.item}</td>
-                        <td class="p-3 text-center font-bold text-white">${d.qtyKirim}</td>
-                        <td class="p-3 text-center font-mono ${d.noGR !== '-' ? 'text-emerald-400 font-bold' : 'text-slate-500'}">${d.noGR}</td>
-                        <td class="p-3 text-center font-bold ${d.qtyGR > 0 ? 'text-emerald-400' : 'text-slate-500'}">${d.qtyGR}</td>
-                        <td class="p-3 text-center font-bold ${d.selisih !== 0 ? 'text-rose-400' : 'text-slate-400'}">${d.selisih}</td>
-                        <td class="p-3 text-center">${statusBadge}</td>
-                        <td class="p-3 text-center font-mono text-slate-400 pr-5">${d.leadTimeDays}</td>
+                        <td class="p-3.5 pl-3 font-mono text-[11px] text-slate-400 truncate max-w-[150px]" title="${d.sourceDomFile}">${d.sourceDomFile}</td>
+                        <td class="p-3.5 font-mono text-slate-200 font-bold">${d.noDom}</td>
+                        <td class="p-3.5 font-mono text-slate-300">${d.tglKirim}</td>
+                        <td class="p-3.5 font-bold text-slate-200">${d.site}</td>
+                        <td class="p-3.5 font-mono text-xs text-amber-300">${d.matNum || '-'}</td>
+                        <td class="p-3.5 font-medium text-slate-200 max-w-[200px] truncate" title="${d.item}">${d.item}</td>
+                        <td class="p-3.5 text-center font-bold text-slate-100">${d.qtyKirim}</td>
+                        <td class="p-3.5 text-center font-mono ${d.noGR !== '-' ? 'text-emerald-400 font-semibold' : 'text-slate-500'}">${d.noGR}</td>
+                        <td class="p-3.5 text-center font-bold ${d.qtyGR === d.qtyKirim ? 'text-emerald-400' : 'text-amber-400'}">${d.qtyGR}</td>
+                        <td class="p-3.5 text-center font-bold ${d.selisih !== 0 ? 'text-rose-400 font-extrabold' : 'text-slate-500'}">${d.selisih}</td>
+                        <td class="p-3.5 text-center">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass}">
+                                ${d.statusGR}
+                            </span>
+                        </td>
+                        <td class="p-3.5 text-center pr-5 font-mono ${isDelayed ? 'text-purple-400 font-bold' : 'text-slate-400'}">${d.leadTimeDays}</td>
                     </tr>
                 `;
             }).join('');
@@ -1372,181 +1604,463 @@
             lucide.createIcons();
         }
 
-        function toggleManualConfirm(id) {
-            const item = processedData.find(d => d.id === id);
-            if (!item) return;
+        // ==========================================
+        // CHART RENDERING (DASHBOARD & REPORT)
+        // ==========================================
+        const plantColorsMap = {};
+        const plantPalette = [
+            '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899', 
+            '#06b6d4', '#f97316', '#84cc16', '#14b8a6', '#6366f1'
+        ];
 
-            item.manuallyConfirmed = !item.manuallyConfirmed;
-            if (item.manuallyConfirmed) {
-                item.statusGR = 'Complete';
-                item.noGR = item.noGR === '-' ? 'MANUAL-CONFIRMED' : item.noGR;
-                item.qtyGR = item.qtyKirim;
-                item.selisih = 0;
-            } else {
-                item.statusGR = item.originalStatusGR;
-                item.noGR = item.originalNoGR;
-                item.qtyGR = item.originalQtyGR;
-                item.selisih = item.originalSelisih;
+        function getPlantColor(site, idx) {
+            if (!plantColorsMap[site]) {
+                plantColorsMap[site] = plantPalette[Object.keys(plantColorsMap).length % plantPalette.length];
             }
-
-            renderDashboard();
-            showToast(`Status konfirmasi item ${item.noDom} diperbarui!`);
+            return plantColorsMap[site];
         }
 
         function renderPlantChart() {
-            const ctx = document.getElementById('chartPlant');
+            const ctx = document.getElementById('chartPlant')?.getContext('2d');
             if (!ctx) return;
 
-            const modeSelect = document.getElementById('chartGroupMode');
-            const mode = modeSelect ? modeSelect.value : 'date_plant';
+            const mode = document.getElementById('chartGroupMode')?.value || 'date_plant';
+            const groups = {};
 
-            let groupKeys = [];
+            processedData.forEach(d => {
+                let key = '';
+                if (mode === 'date_plant') key = `${d.tglKirim} - ${d.site}`;
+                else if (mode === 'plant_only') key = d.site;
+                else if (mode === 'date_only') key = d.tglKirim;
 
-            if (mode === 'date_plant') {
-                const setKeys = new Set();
-                processedData.forEach(d => {
-                    setKeys.add(`${d.tglKirim} - ${d.site}`);
-                });
-                groupKeys = Array.from(setKeys).sort();
-            } else if (mode === 'date_only') {
-                const setKeys = new Set();
-                processedData.forEach(d => setKeys.add(d.tglKirim));
-                groupKeys = Array.from(setKeys).sort();
-            } else {
-                const setKeys = new Set();
-                processedData.forEach(d => setKeys.add(d.site));
-                groupKeys = Array.from(setKeys).sort();
-            }
+                if (!groups[key]) {
+                    groups[key] = { complete: 0, partial: 0, pending: 0, site: d.site };
+                }
 
-            let datasets = [];
+                if (d.statusGR === 'Complete') groups[key].complete++;
+                else if (d.statusGR === 'Partial') groups[key].partial++;
+                else if (d.statusGR === 'Pending') groups[key].pending++;
+            });
 
-            if (mode === 'date_plant' || mode === 'date_only') {
-                // Tampilkan breakdown Status GR per Tanggal & Plant (Ter-GR, Selisih GR, Pending GR)
-                const completeData = groupKeys.map(key => {
-                    return processedData.filter(d => 
-                        (mode === 'date_plant' ? `${d.tglKirim} - ${d.site}` === key : d.tglKirim === key) && 
-                        d.statusGR === 'Complete'
-                    ).length;
-                });
+            const labels = Object.keys(groups);
+            const dataComplete = labels.map(k => groups[k].complete);
+            const dataPartial = labels.map(k => groups[k].partial);
+            const dataPending = labels.map(k => groups[k].pending);
 
-                const partialData = groupKeys.map(key => {
-                    return processedData.filter(d => 
-                        (mode === 'date_plant' ? `${d.tglKirim} - ${d.site}` === key : d.tglKirim === key) && 
-                        d.statusGR === 'Partial'
-                    ).length;
-                });
-
-                const pendingData = groupKeys.map(key => {
-                    return processedData.filter(d => 
-                        (mode === 'date_plant' ? `${d.tglKirim} - ${d.site}` === key : d.tglKirim === key) && 
-                        d.statusGR === 'Pending'
-                    ).length;
-                });
-
-                datasets = [
-                    {
-                        label: 'Ter-GR (Sesuai)',
-                        data: completeData,
-                        backgroundColor: '#10b981',
-                        borderColor: '#34d399',
-                        borderWidth: 1,
-                        borderRadius: 3
-                    },
-                    {
-                        label: 'Selisih GR (Tidak Sesuai)',
-                        data: partialData,
-                        backgroundColor: '#f43f5e',
-                        borderColor: '#fb7185',
-                        borderWidth: 1,
-                        borderRadius: 3
-                    },
-                    {
-                        label: 'Pending / Belum GR',
-                        data: pendingData,
-                        backgroundColor: '#f59e0b',
-                        borderColor: '#fbbf24',
-                        borderWidth: 1,
-                        borderRadius: 3
-                    }
-                ];
-            } else {
-                // Mode per Plant (Ringkas): Breakdown Ter-GR vs Selisih vs Pending per Plant
-                const completeData = groupKeys.map(plant => processedData.filter(d => d.site === plant && d.statusGR === 'Complete').length);
-                const partialData = groupKeys.map(plant => processedData.filter(d => d.site === plant && d.statusGR === 'Partial').length);
-                const pendingData = groupKeys.map(plant => processedData.filter(d => d.site === plant && d.statusGR === 'Pending').length);
-
-                datasets = [
-                    {
-                        label: 'Ter-GR (Sesuai)',
-                        data: completeData,
-                        backgroundColor: '#10b981',
-                        borderColor: '#34d399',
-                        borderWidth: 1,
-                        borderRadius: 4
-                    },
-                    {
-                        label: 'Selisih GR (Tidak Sesuai)',
-                        data: partialData,
-                        backgroundColor: '#f43f5e',
-                        borderColor: '#fb7185',
-                        borderWidth: 1,
-                        borderRadius: 4
-                    },
-                    {
-                        label: 'Pending / Belum GR',
-                        data: pendingData,
-                        backgroundColor: '#f59e0b',
-                        borderColor: '#fbbf24',
-                        borderWidth: 1,
-                        borderRadius: 4
-                    }
-                ];
-            }
-
-            if (chartPlantInstance) {
-                chartPlantInstance.destroy();
-            }
+            if (chartPlantInstance) chartPlantInstance.destroy();
 
             chartPlantInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: groupKeys,
-                    datasets: datasets
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Ter-GR (Sesuai)',
+                            data: dataComplete,
+                            backgroundColor: '#10b981',
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'Selisih GR (Tidak Sesuai)',
+                            data: dataPartial,
+                            backgroundColor: '#f43f5e',
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'Pending GR',
+                            data: dataPending,
+                            backgroundColor: '#f59e0b',
+                            borderRadius: 6
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        x: { 
-                            stacked: true, 
-                            grid: { color: 'rgba(255,255,255,0.05)' }, 
-                            ticks: { 
-                                color: '#94a3b8',
-                                font: { size: 10, family: 'Plus Jakarta Sans' },
-                                maxRotation: 45,
-                                minRotation: 0
-                            } 
+                        x: {
+                            stacked: true,
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#94a3b8', font: { size: 10 } }
                         },
-                        y: { 
-                            stacked: true, 
-                            grid: { color: 'rgba(255,255,255,0.05)' }, 
-                            ticks: { color: '#94a3b8' } 
+                        y: {
+                            stacked: true,
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#94a3b8', font: { size: 10 } }
                         }
                     },
                     plugins: {
-                        legend: { labels: { color: '#e2e8f0', font: { family: 'Plus Jakarta Sans' } } }
+                        legend: {
+                            labels: { color: '#cbd5e1', font: { size: 11 } }
+                        }
                     }
                 }
             });
         }
 
         // ==========================================
-        // EXPORT & REPORT FUNCTIONS
+        // REPORT MODAL & EXPORT JPG / EXCEL
         // ==========================================
-        function exportReport() {
-            if (processedData.length === 0) return;
+        function openJpgModal() {
+            if (processedData.length === 0) {
+                showToast("Tidak ada data untuk dibuatkan laporan!");
+                return;
+            }
 
-            const exportData = processedData.map(d => ({
+            const modal = document.getElementById('jpgModal');
+            if (modal) modal.classList.remove('hidden');
+
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            const infoCutoffDate = document.getElementById('infoCutoffDate');
+            if (infoCutoffDate) infoCutoffDate.innerText = dateStr;
+
+            const reportDateText = document.getElementById('reportDateText');
+            if (reportDateText) reportDateText.innerText = `Tanggal: ${now.toLocaleDateString('id-ID')}`;
+
+            const reportSourceDomText = document.getElementById('reportSourceDomText');
+            if (reportSourceDomText) reportSourceDomText.innerText = `Sumber File: ${domFilesList.length} DOM Files`;
+
+            const total = processedData.length;
+            const complete = processedData.filter(d => d.statusGR === 'Complete').length;
+            const partial = processedData.filter(d => d.statusGR === 'Partial').length;
+            const pending = processedData.filter(d => d.statusGR === 'Pending').length;
+            const pendingTotal = partial + pending;
+
+            const repKpiTotal = document.getElementById('repKpiTotal');
+            if (repKpiTotal) repKpiTotal.innerText = total;
+
+            const repKpiComplete = document.getElementById('repKpiComplete');
+            if (repKpiComplete) repKpiComplete.innerText = complete;
+
+            const repKpiCompletePct = document.getElementById('repKpiCompletePct');
+            if (repKpiCompletePct) repKpiCompletePct.innerText = `${total > 0 ? ((complete / total) * 100).toFixed(1) : 0}% Sesuai`;
+
+            const repKpiPendingTotal = document.getElementById('repKpiPendingTotal');
+            if (repKpiPendingTotal) repKpiPendingTotal.innerText = pendingTotal;
+
+            const repKpiPendingSubtext = document.getElementById('repKpiPendingSubtext');
+            if (repKpiPendingSubtext) repKpiPendingSubtext.innerText = `${pending} Pending • ${partial} Selisih`;
+
+            // Update Info Area Text
+            const infoTotalDomItem = document.getElementById('infoTotalDomItem');
+            if (infoTotalDomItem) infoTotalDomItem.innerText = `${total} item (100.00%)`;
+
+            const infoGrItem = document.getElementById('infoGrItem');
+            if (infoGrItem) infoGrItem.innerText = `${complete} item (${total > 0 ? ((complete/total)*100).toFixed(2) : 0}%)`;
+
+            const infoPendingPartialItem = document.getElementById('infoPendingPartialItem');
+            if (infoPendingPartialItem) infoPendingPartialItem.innerText = `${pendingTotal} item (${total > 0 ? ((pendingTotal/total)*100).toFixed(2) : 0}%)`;
+
+            // Render Site Breakdown Table in Modal
+            const siteMap = {};
+            processedData.forEach(d => {
+                if (!siteMap[d.site]) siteMap[d.site] = { total: 0, complete: 0, partial: 0, pending: 0 };
+                siteMap[d.site].total++;
+                if (d.statusGR === 'Complete') siteMap[d.site].complete++;
+                else if (d.statusGR === 'Partial') siteMap[d.site].partial++;
+                else if (d.statusGR === 'Pending') siteMap[d.site].pending++;
+            });
+
+            const reportTableBody = document.getElementById('reportTableBody');
+            if (reportTableBody) {
+                reportTableBody.innerHTML = Object.keys(siteMap).map(site => {
+                    const s = siteMap[site];
+                    const pct = s.total > 0 ? ((s.complete / s.total) * 100).toFixed(1) : 0;
+                    return `
+                        <tr>
+                            <td class="p-2.5 pl-4 font-bold text-white">${site}</td>
+                            <td class="p-2.5 text-center font-bold text-slate-200">${s.total}</td>
+                            <td class="p-2.5 text-center font-bold text-emerald-400">${s.complete}</td>
+                            <td class="p-2.5 text-center font-bold text-rose-400">${s.partial}</td>
+                            <td class="p-2.5 text-center font-bold text-amber-400">${s.pending}</td>
+                            <td class="p-2.5 text-center pr-4 font-bold ${pct == 100 ? 'text-emerald-400' : 'text-amber-400'}">${pct}%</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            // Render Report Canvas Chart
+            renderReportChart(siteMap);
+            lucide.createIcons();
+        }
+
+        function closeJpgModal() {
+            const modal = document.getElementById('jpgModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function renderReportChart(siteMap) {
+            const ctx = document.getElementById('reportChartPlantCanvas')?.getContext('2d');
+            if (!ctx) return;
+
+            const sites = Object.keys(siteMap);
+            const dataComplete = sites.map(s => siteMap[s].complete);
+            const dataPartial = sites.map(s => siteMap[s].partial);
+            const dataPending = sites.map(s => siteMap[s].pending);
+
+            if (reportChartPlantInstance) reportChartPlantInstance.destroy();
+
+            reportChartPlantInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sites,
+                    datasets: [
+                        { label: 'Ter-GR', data: dataComplete, backgroundColor: '#10b981' },
+                        { label: 'Selisih', data: dataPartial, backgroundColor: '#f43f5e' },
+                        { label: 'Pending', data: dataPending, backgroundColor: '#f59e0b' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { stacked: true, ticks: { color: '#94a3b8', font: { size: 9 } } },
+                        y: { stacked: true, ticks: { color: '#94a3b8', font: { size: 9 } } }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#cbd5e1', font: { size: 9 } } }
+                    }
+                }
+            });
+        }
+
+        async function downloadReportJpg() {
+            const captureElement = document.getElementById('reportCaptureArea');
+            if (!captureElement) return;
+
+            showToast("Memproses gambar laporan...");
+            try {
+                const canvas = await html2canvas(captureElement, { backgroundColor: '#0b1329', scale: 2 });
+                const image = canvas.toDataURL('image/jpeg', 0.95);
+                const a = document.createElement('a');
+                a.href = image;
+                a.download = `Laporan_Monitoring_Delivery_GR_${new Date().toISOString().slice(0, 10)}.jpg`;
+                a.click();
+                showToast("Laporan gambar JPG berhasil diunduh!");
+            } catch (err) {
+                console.error("Gagal mengunduh gambar JPG:", err);
+                showToast("Gagal memproses gambar JPG.");
+            }
+        }
+
+        // Helper function for building formatted multi-sheet Excel
+        function createMultiSheetExcelWorkbook() {
+            const total = processedData.length;
+            const complete = processedData.filter(d => d.statusGR === 'Complete').length;
+            const partial = processedData.filter(d => d.statusGR === 'Partial').length;
+            const pending = processedData.filter(d => d.statusGR === 'Pending').length;
+            const pendingTotal = partial + pending;
+            const fulfillmentPct = total > 0 ? (complete / total) : 0;
+            const totalDiscrepancyQty = processedData.filter(d => d.statusGR === 'Partial').reduce((acc, d) => acc + Math.abs(d.selisih), 0);
+
+            // Group site breakdown data
+            const siteMap = {};
+            processedData.forEach(d => {
+                if (!siteMap[d.site]) siteMap[d.site] = { total: 0, complete: 0, partial: 0, pending: 0 };
+                siteMap[d.site].total++;
+                if (d.statusGR === 'Complete') siteMap[d.site].complete++;
+                else if (d.statusGR === 'Partial') siteMap[d.site].partial++;
+                else if (d.statusGR === 'Pending') siteMap[d.site].pending++;
+            });
+
+            const siteList = Object.keys(siteMap);
+            const dateNowStr = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            // Generate HTML table for Sheet 1 (Executive Summary) styled exactly as requested
+            let summaryHtml = `
+            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+                <meta charset="UTF-8">
+                <!--[if gte mso 9]>
+                <xml>
+                    <x:ExcelWorkbook>
+                        <x:ExcelWorksheets>
+                            <x:ExcelWorksheet>
+                                <x:Name>Executive Summary</x:Name>
+                                <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+                            </x:ExcelWorksheet>
+                        </x:ExcelWorksheets>
+                    </x:ExcelWorkbook>
+                </xml>
+                <![endif]-->
+                <style>
+                    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; background-color: #ffffff; margin:0; padding:15px; }
+                    .meta-tbl { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+                    .meta-label { font-weight: 700; color: #1e293b; width: 180px; padding: 4px 0; font-size: 11pt; }
+                    .meta-val { font-weight: 700; color: #0f172a; padding: 4px 0; font-size: 11pt; }
+                    
+                    .banner-title { background-color: #0b2545; color: #ffffff; font-size: 12pt; font-weight: 800; padding: 8px 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+                    
+                    .kpi-card { border: 1px solid #cbd5e1; padding: 10px; text-align: center; }
+                    .kpi-num { font-size: 24pt; font-weight: 800; line-height: 1.1; }
+                    .kpi-label { font-size: 9.5pt; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
+                    .badge-pct { display: inline; font-weight: 800; font-size: 11pt; margin-left: 6px; }
+                    
+                    .tbl-header-bss { background-color: #0b2545; color: #ffffff; font-weight: 800; text-align: center; border: 1px solid #0b2545; padding: 9px; font-size: 11pt; }
+                    .cell-site { font-weight: 800; font-size: 11pt; color: #0f172a; padding: 8px 12px; border: 1px solid #e2e8f0; }
+                    .cell-val { font-weight: 700; font-size: 11pt; text-align: center; padding: 8px 12px; border: 1px solid #e2e8f0; font-family: Consolas, monospace; }
+                    
+                    .row-even { background-color: #ffffff; }
+                    .row-odd { background-color: #f8fafc; }
+                    .footer-tag { background-color: #0b2545; color: #ffffff; font-style: italic; font-weight: 700; padding: 8px 15px; font-size: 11pt; }
+                </style>
+            </head>
+            <body>
+                <!-- HEADER METADATA SECTION -->
+                <table class="meta-tbl">
+                    <tr>
+                        <td class="meta-label">📅 Tanggal Laporan</td>
+                        <td class="meta-val">: ${dateNowStr}</td>
+                        <td colspan="4"></td>
+                    </tr>
+                    <tr>
+                        <td class="meta-label">👤 Authorized By</td>
+                        <td class="meta-val">: Sabil Amin</td>
+                        <td colspan="4"></td>
+                    </tr>
+                    <tr>
+                        <td class="meta-label">📑 Total File DOM Sumber</td>
+                        <td class="meta-val">: ${domFilesList.length} File</td>
+                        <td colspan="4"></td>
+                    </tr>
+                </table>
+
+                <table style="width:100%; border-collapse:collapse;">
+                    <!-- SECTION 1: RINGKASAN UTAMA STATUS DELIVERY TO GR -->
+                    <tr>
+                        <td colspan="6" class="banner-title">📊 RINGKASAN UTAMA STATUS DELIVERY TO GR</td>
+                    </tr>
+                    
+                    <tr><td colspan="6" style="height:6px;"></td></tr>
+
+                    <!-- KPI BOX CARDS ROW -->
+                    <tr>
+                        <td colspan="1" class="kpi-card" style="width:20%; background-color:#f1f5f9; border-color:#cbd5e1;">
+                            <div class="kpi-label" style="color:#475569;">METRIK INDIKATOR</div>
+                            <div class="kpi-num" style="color:#0b2545;">${total}</div>
+                            <div style="font-size:8.5pt; color:#64748b; font-style:italic; margin-top:2px;">Total Delivery Items</div>
+                        </td>
+                        <td colspan="2" class="kpi-card" style="width:30%; background-color:#f0fdf4; border:2px solid #16a34a;">
+                            <div class="kpi-label" style="color:#15803d;">JUMLAH TER-GR (Sesuai)</div>
+                            <div class="kpi-num" style="color:#16a34a;">
+                                ${complete}
+                                <span class="badge-pct" style="color:#15803d;">
+                                    ${(fulfillmentPct * 100).toFixed(2)}%
+                                </span>
+                            </div>
+                        </td>
+                        <td colspan="1" class="kpi-card" style="width:25%; background-color:#fff1f2; border-color:#fecdd3;">
+                            <div class="kpi-label" style="color:#be123c;">GR Tidak Sesuai (Selisih)</div>
+                            <div class="kpi-num" style="color:#dc2626;">
+                                ${partial}
+                                <span class="badge-pct" style="color:#dc2626;">
+                                    ${(total > 0 ? (partial / total) * 100 : 0).toFixed(2)}%
+                                </span>
+                            </div>
+                        </td>
+                        <td colspan="2" class="kpi-card" style="width:25%; background-color:#fffbe6; border-color:#fef08a;">
+                            <div class="kpi-label" style="color:#b45309;">Pending / Outstanding GR</div>
+                            <div class="kpi-num" style="color:#d97706;">
+                                ${pending}
+                                <span class="badge-pct" style="color:#d97706;">
+                                    ${(total > 0 ? (pending / total) * 100 : 0).toFixed(2)}%
+                                </span>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr><td colspan="6" style="height:16px;"></td></tr>
+
+                    <!-- SECTION 2: TABLE REKAPITULASI PER SITE -->
+                    <tr>
+                        <td colspan="6" class="banner-title">📍 REKAPITULASI & DISTRIBUSI PER SITE / PLANT</td>
+                    </tr>
+                    
+                    <tr>
+                        <th class="tbl-header-bss" style="width:22%; text-align:left; padding-left:12px;">Site Tujuan</th>
+                        <th class="tbl-header-bss" style="width:16%;">Total Delivery</th>
+                        <th class="tbl-header-bss" style="width:18%;">Ter-GR (Sesuai)</th>
+                        <th class="tbl-header-bss" style="width:14%;">Selisih GR</th>
+                        <th class="tbl-header-bss" style="width:14%;">Pending GR</th>
+                        <th class="tbl-header-bss" style="width:16%;">% Fulfillment</th>
+                    </tr>
+            `;
+
+            siteList.forEach((site, idx) => {
+                const s = siteMap[site];
+                const pct = s.total > 0 ? (s.complete / s.total) * 100 : 0;
+                const rowClass = idx % 2 === 0 ? 'row-even' : 'row-odd';
+
+                summaryHtml += `
+                    <tr class="${rowClass}">
+                        <td class="cell-site">${site}</td>
+                        <td class="cell-val" style="color:#0f172a;">${s.total}</td>
+                        <td class="cell-val" style="color:#16a34a;">${s.complete}</td>
+                        <td class="cell-val" style="${s.partial > 0 ? 'color:#dc2626;' : 'color:#94a3b8;'}">${s.partial}</td>
+                        <td class="cell-val" style="${s.pending > 0 ? 'color:#d97706;' : 'color:#94a3b8;'}">${s.pending}</td>
+                        <td class="cell-val" style="color:#0284c7;">${pct.toFixed(2)}%</td>
+                    </tr>
+                `;
+            });
+
+            summaryHtml += `
+                    <tr><td colspan="6" style="height:12px;"></td></tr>
+                    <tr>
+                        <td colspan="6" class="footer-tag">
+                            Together for Better Logistics
+                        </td>
+                    </tr>
+                </table>
+            </body>
+            </html>
+            `;
+
+            // Standard SheetJS workbook setup as fallback multi-sheet structure
+            const summaryRows = [
+                ["Tanggal Laporan:", dateNowStr, "", "", "", ""],
+                ["Authorized By:", "Sabil Amin", "", "", "", ""],
+                ["Total File DOM Sumber:", domFilesList.length + " File", "", "", "", ""],
+                [""],
+                ["RINGKASAN UTAMA STATUS DELIVERY TO GR", "", "", "", "", ""],
+                ["METRIK INDIKATOR", "JUMLAH ITEM", "PERSENTASE", "KETERANGAN", "", ""],
+                ["Total Delivery Items", total, 1.00, "Total Keseluruhan Barang Dikeluarkan", "", ""],
+                ["Item Ter-GR (Sesuai)", complete, fulfillmentPct, "Goods Receipt Sempurna (Qty Kirim = Qty GR)", "", ""],
+                ["GR Tidak Sesuai (Selisih)", partial, (total > 0 ? (partial / total) : 0), `Qty Kuantitas Selisih: ${totalDiscrepancyQty} Pcs`, "", ""],
+                ["Pending / Outstanding GR", pending, (total > 0 ? (pending / total) : 0), "GR Belum Diproses / Belum Terbit", "", ""],
+                ["Total Unresolved (Pending & Selisih)", pendingTotal, (total > 0 ? (pendingTotal / total) : 0), "Perlu Tindak Lanjut Tim Site & Logistik", "", ""],
+                [""],
+                ["REKAPITULASI & DISTRIBUSI PER SITE / PLANT", "", "", "", "", ""],
+                ["Site Tujuan", "Total Delivery", "Ter-GR (Sesuai)", "Selisih GR", "Pending GR", "% Fulfillment"]
+            ];
+
+            siteList.forEach(site => {
+                const s = siteMap[site];
+                const pct = s.total > 0 ? (s.complete / s.total) : 0;
+                summaryRows.push([site, s.total, s.complete, s.partial, s.pending, pct]);
+            });
+
+            const wb = XLSX.utils.book_new();
+            const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+            
+            const pctCells = ['C7', 'C8', 'C9', 'C10', 'C11'];
+            pctCells.forEach(cell => { if (wsSummary[cell]) wsSummary[cell].z = '0.00%'; });
+
+            const startSiteRow = 15;
+            siteList.forEach((_, idx) => {
+                const cell = 'F' + (startSiteRow + idx);
+                if (wsSummary[cell]) wsSummary[cell].z = '0.00%';
+            });
+
+            wsSummary['!cols'] = [
+                { wch: 30 }, { wch: 18 }, { wch: 18 }, { wch: 45 }, { wch: 16 }, { wch: 18 }
+            ];
+
+            XLSX.utils.book_append_sheet(wb, wsSummary, "Executive Summary");
+
+            // Sheet 2: Detail Data Rekonsiliasi (Menggabungkan Seluruh Data Material & Kolom dari FB & DOM)
+            const detailRows = processedData.map(d => ({
                 "File DOM Sumber": d.sourceDomFile,
                 "No. DOM": d.noDom,
                 "Document Date (Tgl Kirim)": d.tglKirim,
@@ -1560,244 +2074,278 @@
                 "Status GR": d.statusGR,
                 "Tgl GR": d.tglGR,
                 "Lead Time": d.leadTimeDays,
-                "Konfirmasi Manual": d.manuallyConfirmed ? 'Ya' : 'Tidak'
+                "Konfirmasi Manual": d.manuallyConfirmed ? "YA" : "TIDAK"
             }));
 
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Rekonsiliasi Delivery GR");
-
-            XLSX.writeFile(wb, `Laporan_Rekonsiliasi_Delivery_to_GR_${new Date().toISOString().slice(0, 10)}.xlsx`);
-            showToast("Laporan Excel berhasil diunduh!");
-        }
-
-        function openJpgModal() {
-            const modal = document.getElementById('jpgModal');
-            if (!modal) return;
-
-            // Populate Report Summary
-            const totalItems = processedData.length;
-            const completedItems = processedData.filter(d => d.statusGR === 'Complete').length;
-            const pendingItems = processedData.filter(d => d.statusGR === 'Pending').length;
-            const partialItems = processedData.filter(d => d.statusGR === 'Partial').length;
-            const completedPct = totalItems > 0 ? ((completedItems / totalItems) * 100).toFixed(1) : 0;
-            const outstandingTotal = pendingItems + partialItems;
-
-            const now = new Date();
-            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            const formattedCurrentDate = now.toLocaleDateString('id-ID', dateOptions);
-
-            document.getElementById('reportDateText').innerText = `Tanggal: ${now.toLocaleDateString('id-ID')}`;
-            document.getElementById('reportSourceDomText').innerText = `Sumber File: ${domFilesList.length} DOM Files`;
-
-            document.getElementById('repKpiTotal').innerText = totalItems;
-            document.getElementById('repKpiComplete').innerText = completedItems;
-            document.getElementById('repKpiCompletePct').innerText = `${completedPct}% Sesuai`;
-
-            document.getElementById('repKpiPendingTotal').innerText = outstandingTotal;
-            document.getElementById('repKpiPendingSubtext').innerText = `${pendingItems} Pending • ${partialItems} Selisih`;
-
-            // BANNERS DYNAMIC LOGIC (PERINGATAN VS MOTIVASI 100% ACH)
-            const banner = document.getElementById('reportMotivationBanner');
-            const infoAlert = document.getElementById('infoStatusAlert');
-            const infoAlertText = document.getElementById('infoStatusAlertText');
-
-            if (parseFloat(completedPct) === 100 && totalItems > 0) {
-                // Banner Motivasi & Apresiasi 100% Achievement
-                if (banner) {
-                    banner.className = "p-3.5 rounded-xl border bg-gradient-to-r from-emerald-950/80 via-teal-950/70 to-slate-900 border-emerald-500/40 text-emerald-200 flex items-center gap-3 shadow-lg shadow-emerald-950/40";
-                    banner.innerHTML = `
-                        <div class="p-2 rounded-xl bg-emerald-500 text-slate-950 font-bold shrink-0 shadow-md">
-                            <i data-lucide="award" class="w-6 h-6"></i>
-                        </div>
-                        <div class="space-y-0.5">
-                            <h4 class="font-extrabold text-white text-sm tracking-tight flex items-center gap-2">
-                                🌟 OUTSTANDING PERFORMANCE - 100% GR FULFILLMENT ACHIEVED!
-                            </h4>
-                            <p class="text-xs text-emerald-300/90 leading-relaxed">
-                                Selamat & apresiasi setinggi-tingginya untuk seluruh Tim Logistik & Operasional Depo Samarinda! Seluruh <strong>${totalItems} item pengiriman</strong> telah terekonsiliasi sempurna (Good Receipt 100%). Tetap pertahankan akurasi dan keandalan layanan terbaik! 🚀
-                            </p>
-                        </div>
-                    `;
-                }
-
-                if (infoAlert && infoAlertText) {
-                    infoAlert.className = "mt-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-sans font-medium text-[11px] flex items-center gap-2";
-                    infoAlertText.innerHTML = "🎉 <strong>PERFORMANCE PERFECT:</strong> 100% Delivery to GR terpenuhi secara sempurna tanpa selisih atau pending!";
-                }
-            } else {
-                // Banner Peringatan Ada Pending / Selisih GR
-                if (banner) {
-                    banner.className = "p-3.5 rounded-xl border bg-gradient-to-r from-amber-950/80 via-rose-950/60 to-slate-900 border-amber-500/40 text-amber-200 flex items-start gap-3 shadow-lg shadow-amber-950/30";
-                    banner.innerHTML = `
-                        <div class="p-2 rounded-xl bg-amber-500 text-slate-950 font-bold shrink-0 mt-0.5 shadow-md">
-                            <i data-lucide="alert-triangle" class="w-5 h-5"></i>
-                        </div>
-                        <div class="space-y-0.5">
-                            <h4 class="font-extrabold text-amber-300 text-xs uppercase tracking-wider flex items-center gap-2">
-                                ⚠️ PERINGATAN: MASIH TERDAPAT OUTSTANDING GR (${outstandingTotal} ITEM)
-                            </h4>
-                            <p class="text-xs text-amber-100/90 leading-relaxed">
-                                Terdapat <strong>${pendingItems} item Pending GR</strong> dan <strong>${partialItems} item Selisih Qty GR</strong> yang memerlukan follow-up segera ke Site Tujuan. Mohon pastikan konfirmasi penerimaan fisik barang ditingkatkan agar pencapaian target rekonsiliasi dapat optimal.
-                            </p>
-                        </div>
-                    `;
-                }
-
-                if (infoAlert && infoAlertText) {
-                    infoAlert.className = "mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 font-sans font-medium text-[11px] flex items-center gap-2";
-                    infoAlertText.innerHTML = `⚠️ <strong>ACTION REQUIRED:</strong> Terdapat ${outstandingTotal} item pengiriman (${(100 - completedPct).toFixed(1)}%) yang masih pending atau memiliki selisih kuantitas.`;
-                }
-            }
-
-            // Populate Report Breakdown Table
-            const sites = [...new Set(processedData.map(d => d.site))];
-            const reportTbody = document.getElementById('reportTableBody');
-            
-            reportTbody.innerHTML = sites.map(s => {
-                const siteItems = processedData.filter(d => d.site === s);
-                const total = siteItems.length;
-                const complete = siteItems.filter(d => d.statusGR === 'Complete').length;
-                const partial = siteItems.filter(d => d.statusGR === 'Partial').length;
-                const pending = siteItems.filter(d => d.statusGR === 'Pending').length;
-                const pct = total > 0 ? ((complete / total) * 100).toFixed(1) : 0;
-
-                return `
-                    <tr class="hover:bg-slate-800/40">
-                        <td class="p-2.5 pl-4 font-bold text-white font-sans">${s}</td>
-                        <td class="p-2.5 text-center font-bold text-slate-200">${total}</td>
-                        <td class="p-2.5 text-center font-bold text-emerald-400">${complete}</td>
-                        <td class="p-2.5 text-center font-bold text-rose-400">${partial}</td>
-                        <td class="p-2.5 text-center font-bold text-amber-400">${pending}</td>
-                        <td class="p-2.5 text-center font-bold text-emerald-300 pr-4">${pct}%</td>
-                    </tr>
-                `;
-            }).join('');
-
-            // Extra Report Info Text below capture area (Up-to-Date Date Generation)
-            document.getElementById('infoCutoffDate').innerText = formattedCurrentDate;
-            document.getElementById('infoTotalDomItem').innerText = `${totalItems} item (100.00%)`;
-            document.getElementById('infoGrItem').innerText = `${completedItems} item (${completedPct}%)`;
-            document.getElementById('infoPendingPartialItem').innerText = `${pendingItems + partialItems} item (${(100 - completedPct).toFixed(1)}%)`;
-
-            modal.classList.remove('hidden');
-            renderReportChart();
-        }
-
-        function closeJpgModal() {
-            document.getElementById('jpgModal').classList.add('hidden');
-        }
-
-        function renderReportChart() {
-            const ctx = document.getElementById('reportChartPlantCanvas');
-            if (!ctx) return;
-
-            const setKeys = new Set();
-            processedData.forEach(d => setKeys.add(`${d.tglKirim} - ${d.site}`));
-            const groupKeys = Array.from(setKeys).sort();
-
-            const completeData = groupKeys.map(key => {
-                return processedData.filter(d => `${d.tglKirim} - ${d.site}` === key && d.statusGR === 'Complete').length;
-            });
-
-            const partialData = groupKeys.map(key => {
-                return processedData.filter(d => `${d.tglKirim} - ${d.site}` === key && d.statusGR === 'Partial').length;
-            });
-
-            const pendingData = groupKeys.map(key => {
-                return processedData.filter(d => `${d.tglKirim} - ${d.site}` === key && d.statusGR === 'Pending').length;
-            });
-
-            const datasets = [
-                {
-                    label: 'Ter-GR (Sesuai)',
-                    data: completeData,
-                    backgroundColor: '#10b981',
-                    borderRadius: 2
-                },
-                {
-                    label: 'Selisih GR',
-                    data: partialData,
-                    backgroundColor: '#f43f5e',
-                    borderRadius: 2
-                },
-                {
-                    label: 'Pending GR',
-                    data: pendingData,
-                    backgroundColor: '#f59e0b',
-                    borderRadius: 2
-                }
+            const wsDetail = XLSX.utils.json_to_sheet(detailRows);
+            wsDetail['!cols'] = [
+                { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, 
+                { wch: 35 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, 
+                { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 18 }
             ];
+            XLSX.utils.book_append_sheet(wb, wsDetail, "Detail Data Material & GR");
 
-            if (reportChartPlantInstance) {
-                reportChartPlantInstance.destroy();
-            }
-
-            reportChartPlantInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: groupKeys,
-                    datasets: datasets
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { labels: { color: '#e2e8f0', font: { size: 9 } } } },
-                    scales: {
-                        x: { 
-                            stacked: true, 
-                            ticks: { color: '#94a3b8', font: { size: 9 }, maxRotation: 45 } 
-                        },
-                        y: { stacked: true, ticks: { color: '#94a3b8', font: { size: 9 } } }
-                    }
-                }
-            });
+            wb.summaryHtml = summaryHtml;
+            return wb;
         }
 
-        function downloadReportJpg() {
-            const element = document.getElementById('reportCaptureArea');
-            if (!element) return;
+        function exportReport() {
+            if (processedData.length === 0) {
+                showToast("Tidak ada data untuk diekspor!");
+                return;
+            }
 
-            showToast("Membuat gambar laporan JPG...");
+            try {
+                const total = processedData.length;
+                const complete = processedData.filter(d => d.statusGR === 'Complete').length;
+                const partial = processedData.filter(d => d.statusGR === 'Partial').length;
+                const pending = processedData.filter(d => d.statusGR === 'Pending').length;
+                const fulfillmentPct = total > 0 ? (complete / total) * 100 : 0;
+                const partialPct = total > 0 ? (partial / total) * 100 : 0;
+                const pendingPct = total > 0 ? (pending / total) * 100 : 0;
 
-            html2canvas(element, {
-                backgroundColor: '#0b1329',
-                scale: 2
-            }).then(canvas => {
-                const link = document.createElement('a');
-                link.download = `Laporan_Executive_Monitoring_Delivery_GR_${new Date().toISOString().slice(0, 10)}.jpg`;
-                link.href = canvas.toDataURL('image/jpeg', 0.95);
-                link.click();
-                showToast("Gambar Laporan berhasil diunduh!");
-            }).catch(err => {
-                console.error("Gagal generate gambar:", err);
-                showToast("Gagal mengunduh gambar laporan.");
-            });
+                // Group site breakdown data
+                const siteMap = {};
+                processedData.forEach(d => {
+                    if (!siteMap[d.site]) siteMap[d.site] = { total: 0, complete: 0, partial: 0, pending: 0 };
+                    siteMap[d.site].total++;
+                    if (d.statusGR === 'Complete') siteMap[d.site].complete++;
+                    else if (d.statusGR === 'Partial') siteMap[d.site].partial++;
+                    else if (d.statusGR === 'Pending') siteMap[d.site].pending++;
+                });
+
+                const siteList = Object.keys(siteMap);
+                const dateNowStr = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+                // Construct Visual HTML for Executive Summary (Gambar 1 style)
+                let excelTemplate = `
+                <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+                <head>
+                    <meta charset="UTF-8">
+                    <!--[if gte mso 9]>
+                    <xml>
+                        <x:ExcelWorkbook>
+                            <x:ExcelWorksheets>
+                                <x:ExcelWorksheet>
+                                    <x:Name>Executive Summary</x:Name>
+                                    <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+                                </x:ExcelWorksheet>
+                                <x:ExcelWorksheet>
+                                    <x:Name>Detail Data Material & GR</x:Name>
+                                    <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+                                </x:ExcelWorksheet>
+                            </x:ExcelWorksheets>
+                        </x:ExcelWorkbook>
+                    </xml>
+                    <![endif]-->
+                    <style>
+                        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; background-color: #ffffff; margin:0; padding:15px; }
+                        table { border-collapse: collapse; }
+                        .meta-label { font-weight: 700; color: #1e293b; padding: 4px 8px; font-size: 10.5pt; text-align: left; }
+                        .meta-val { font-weight: 700; color: #0f172a; padding: 4px 8px; font-size: 10.5pt; text-align: left; }
+                        
+                        .banner-title { background-color: #0b2545; color: #ffffff; font-size: 11.5pt; font-weight: 800; padding: 8px 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+                        
+                        .kpi-card { border: 1px solid #cbd5e1; padding: 12px; text-align: center; vertical-align: middle; }
+                        .kpi-num { font-size: 26pt; font-weight: 800; line-height: 1; }
+                        .kpi-label { font-size: 9.5pt; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
+                        .badge-pct { font-weight: 800; font-size: 12pt; margin-left: 8px; }
+                        
+                        .tbl-header-bss { background-color: #0b2545; color: #ffffff; font-weight: 800; text-align: center; border: 1px solid #0b2545; padding: 9px; font-size: 10.5pt; }
+                        .cell-site { font-weight: 800; font-size: 11pt; color: #0f172a; padding: 8px 12px; border: 1px solid #e2e8f0; text-align: left; }
+                        .cell-val { font-weight: 700; font-size: 11pt; text-align: center; padding: 8px 12px; border: 1px solid #e2e8f0; }
+                        
+                        .footer-tag { background-color: #0b2545; color: #ffffff; font-style: italic; font-weight: 700; padding: 8px 15px; font-size: 10.5pt; text-align: left; }
+                        
+                        .dt-head { background-color: #1e293b; color: #ffffff; font-weight: 700; text-align: center; border: 1px solid #334155; padding: 6px; font-size: 9.5pt; }
+                        .dt-cell { font-size: 9.5pt; padding: 5px 8px; border: 1px solid #cbd5e1; }
+                    </style>
+                </head>
+                <body>
+                    <!-- SHEET 1: EXECUTIVE SUMMARY -->
+                    <table>
+                        <tr>
+                            <td class="meta-label" style="width:180px;">📅 Tanggal Laporan</td>
+                            <td class="meta-val" style="width:250px;">: ${dateNowStr}</td>
+                            <td colspan="4"></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">👤 Authorized By</td>
+                            <td class="meta-val">: Sabil Amin</td>
+                            <td colspan="4"></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">📑 Total File DOM Sumber</td>
+                            <td class="meta-val">: ${domFilesList.length} File</td>
+                            <td colspan="4"></td>
+                        </tr>
+                        
+                        <tr><td colspan="6" style="height:10px;"></td></tr>
+
+                        <!-- SECTION 1: RINGKASAN UTAMA STATUS DELIVERY TO GR -->
+                        <tr>
+                            <td colspan="6" class="banner-title">📊 RINGKASAN UTAMA STATUS DELIVERY TO GR</td>
+                        </tr>
+                        
+                        <tr>
+                            <!-- METRIK INDIKATOR -->
+                            <td colspan="1" class="kpi-card" style="width:20%; background-color:#f1f5f9; border-color:#cbd5e1;">
+                                <div class="kpi-label" style="color:#475569;">METRIK INDIKATOR</div>
+                                <div class="kpi-num" style="color:#0b2545;">${total}</div>
+                                <div style="font-size:8.5pt; color:#64748b; font-style:italic; margin-top:4px;">Total Delivery Items</div>
+                            </td>
+                            <!-- TER-GR (SESUAI) -->
+                            <td colspan="2" class="kpi-card" style="width:35%; background-color:#f0fdf4; border:1px solid #bbf7d0;">
+                                <div class="kpi-label" style="color:#15803d;">JUMLAH TER-GR (Sesuai)</div>
+                                <div class="kpi-num" style="color:#16a34a;">
+                                    ${complete}
+                                    <span class="badge-pct" style="color:#15803d;">${fulfillmentPct.toFixed(2)}%</span>
+                                </div>
+                            </td>
+                            <!-- GR TIDAK SESUAI (SELISIH) -->
+                            <td colspan="1" class="kpi-card" style="width:22%; background-color:#fff1f2; border:1px solid #fecdd3;">
+                                <div class="kpi-label" style="color:#be123c;">GR Tidak Sesuai (Selisih)</div>
+                                <div class="kpi-num" style="color:#dc2626;">
+                                    ${partial}
+                                    <span class="badge-pct" style="color:#dc2626;">${partialPct.toFixed(2)}%</span>
+                                </div>
+                            </td>
+                            <!-- PENDING / OUTSTANDING GR -->
+                            <td colspan="2" class="kpi-card" style="width:23%; background-color:#fffbe6; border:1px solid #fef08a;">
+                                <div class="kpi-label" style="color:#b45309;">Pending / Outstanding GR</div>
+                                <div class="kpi-num" style="color:#d97706;">
+                                    ${pending}
+                                    <span class="badge-pct" style="color:#d97706;">${pendingPct.toFixed(2)}%</span>
+                                </div>
+                            </td>
+                        </tr>
+
+                        <tr><td colspan="6" style="height:14px;"></td></tr>
+
+                        <!-- SECTION 2: TABLE REKAPITULASI PER SITE -->
+                        <tr>
+                            <td colspan="6" class="banner-title">📍 REKAPITULASI & DISTRIBUSI PER SITE / PLANT</td>
+                        </tr>
+                        
+                        <tr>
+                            <th class="tbl-header-bss" style="width:22%; text-align:left; padding-left:12px;">Site Tujuan</th>
+                            <th class="tbl-header-bss" style="width:16%;">Total Delivery</th>
+                            <th class="tbl-header-bss" style="width:18%;">Ter-GR (Sesuai)</th>
+                            <th class="tbl-header-bss" style="width:14%;">Selisih GR</th>
+                            <th class="tbl-header-bss" style="width:14%;">Pending GR</th>
+                            <th class="tbl-header-bss" style="width:16%;">% Fulfillment</th>
+                        </tr>
+                `;
+
+                siteList.forEach((site, idx) => {
+                    const s = siteMap[site];
+                    const pct = s.total > 0 ? (s.complete / s.total) * 100 : 0;
+                    const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+
+                    excelTemplate += `
+                        <tr style="background-color:${rowBg};">
+                            <td class="cell-site">${site}</td>
+                            <td class="cell-val" style="color:#0f172a;">${s.total}</td>
+                            <td class="cell-val" style="color:#16a34a;">${s.complete}</td>
+                            <td class="cell-val" style="${s.partial > 0 ? 'color:#dc2626; font-weight:800;' : 'color:#94a3b8;'}">${s.partial}</td>
+                            <td class="cell-val" style="${s.pending > 0 ? 'color:#d97706; font-weight:800;' : 'color:#94a3b8;'}">${s.pending}</td>
+                            <td class="cell-val" style="color:#0284c7; font-weight:800;">${pct.toFixed(2)}%</td>
+                        </tr>
+                    `;
+                });
+
+                excelTemplate += `
+                        <tr><td colspan="6" style="height:10px;"></td></tr>
+                        <tr>
+                            <td colspan="6" class="footer-tag">
+                                Together for Better Logistics
+                            </td>
+                        </tr>
+                    </table>
+
+                    <br style="page-break-before:always" />
+
+                    <!-- SHEET 2: DETAIL DATA MATERIAL & GR -->
+                    <table>
+                        <tr>
+                            <th class="dt-head">File DOM Sumber</th>
+                            <th class="dt-head">No. DOM</th>
+                            <th class="dt-head">Document Date</th>
+                            <th class="dt-head">Site Tujuan</th>
+                            <th class="dt-head">Material Number</th>
+                            <th class="dt-head">Nama Material</th>
+                            <th class="dt-head">Qty Kirim</th>
+                            <th class="dt-head">No. GR</th>
+                            <th class="dt-head">Qty GR</th>
+                            <th class="dt-head">Selisih Qty</th>
+                            <th class="dt-head">Status GR</th>
+                            <th class="dt-head">Tgl GR</th>
+                            <th class="dt-head">Lead Time</th>
+                            <th class="dt-head">Konfirmasi Manual</th>
+                        </tr>
+                `;
+
+                processedData.forEach(d => {
+                    excelTemplate += `
+                        <tr>
+                            <td class="dt-cell">${d.sourceDomFile}</td>
+                            <td class="dt-cell" style="font-weight:bold;">${d.noDom}</td>
+                            <td class="dt-cell">${d.tglKirim}</td>
+                            <td class="dt-cell" style="font-weight:bold;">${d.site}</td>
+                            <td class="dt-cell" style="color:#b45309;">${d.matNum || '-'}</td>
+                            <td class="dt-cell">${d.item}</td>
+                            <td class="dt-cell" style="text-align:center; font-weight:bold;">${d.qtyKirim}</td>
+                            <td class="dt-cell" style="text-align:center; color:#16a34a; font-weight:bold;">${d.noGR}</td>
+                            <td class="dt-cell" style="text-align:center; font-weight:bold;">${d.qtyGR}</td>
+                            <td class="dt-cell" style="text-align:center; ${d.selisih !== 0 ? 'color:#dc2626; font-weight:bold;' : ''}">${d.selisih}</td>
+                            <td class="dt-cell" style="text-align:center; font-weight:bold;">${d.statusGR}</td>
+                            <td class="dt-cell" style="text-align:center;">${d.tglGR}</td>
+                            <td class="dt-cell" style="text-align:center;">${d.leadTimeDays}</td>
+                            <td class="dt-cell" style="text-align:center;">${d.manuallyConfirmed ? 'YA' : 'TIDAK'}</td>
+                        </tr>
+                    `;
+                });
+
+                excelTemplate += `
+                    </table>
+                </body>
+                </html>
+                `;
+
+                const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Monitoring_Delivery_to_GR_${new Date().toISOString().slice(0, 10)}.xls`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                showToast("Laporan Excel visual (Gambar 1 style + Detail Sheet 2) berhasil diunduh!");
+            } catch (err) {
+                console.error("Gagal mengekspor laporan Excel:", err);
+                showToast("Terjadi kesalahan saat mengekspor ke Excel.");
+            }
         }
 
         function loadFromCloud() {
             if (window.latestCloudData && window.latestCloudData.length > 0) {
-                const cloudItems = window.latestCloudData[0].items || [];
-                if (cloudItems.length > 0) {
-                    processedData = cloudItems;
+                const cloudItem = window.latestCloudData.find(d => d.items && d.items.length > 0);
+                if (cloudItem && cloudItem.items) {
+                    processedData = cloudItem.items;
                     document.getElementById('uploadView').classList.add('hidden');
                     document.getElementById('dashboardView').classList.remove('hidden');
                     populateSourceFileDropdown();
                     renderDashboard();
-                    showToast("Data terbaru berhasil dimuat dari Database Cloud!");
-                    return;
+                    showToast("Data terbaru berhasil dimuat dari Database Cloud Web!");
+                } else {
+                    showToast("Tidak ada data valid di Database Cloud.");
                 }
+            } else {
+                showToast("Belum ada data tersimpan di Database Cloud.");
             }
-            showToast("Belum ada data tersimpan di Cloud Database.");
         }
     </script>
-
-    <!-- Toast Notification Container -->
-    <div id="toast" class="fixed bottom-5 right-5 z-50 hidden transition-all">
-        <div class="glass-panel border border-emerald-500/40 bg-slate-900/90 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold">
-            <i data-lucide="info" class="w-4 h-4 text-emerald-400"></i>
-            <span id="toastMsg">Notifikasi</span>
-        </div>
-    </div>
 </body>
 </html>
