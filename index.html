@@ -460,11 +460,18 @@
             <div class="grid grid-cols-1 gap-6">
                 <!-- Diagram Batang Status per Plant / Site dengan Jumlah Item -->
                 <div class="glass-panel p-5 rounded-2xl border border-slate-800 flex flex-col justify-between">
-                    <div class="flex items-center justify-between mb-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                         <h4 class="text-sm font-bold text-white flex items-center gap-2">
-                            <i data-lucide="bar-chart-3" class="w-4 h-4 text-emerald-400"></i> Rekapitulasi & Distribution Item per Plant / Site
+                            <i data-lucide="bar-chart-3" class="w-4 h-4 text-emerald-400"></i> Rekapitulasi & Distribution Item per Tanggal & Plant
                         </h4>
-                        <span class="text-xs text-slate-400">Menampilkan Jumlah Item Per Status GR</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-slate-400">Mode Grafik:</span>
+                            <select id="chartGroupMode" onchange="renderPlantChart()" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-2.5 py-1 focus:outline-none focus:border-emerald-500">
+                                <option value="date_plant">Per Tanggal & Plant (Detail)</option>
+                                <option value="plant_only">Per Plant (Ringkas)</option>
+                                <option value="date_only">Per Tanggal Kirim (Trend)</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="relative h-72 w-full flex items-center justify-center">
                         <canvas id="chartPlant"></canvas>
@@ -544,8 +551,9 @@
                                 <th class="p-3.5 text-center w-12 bg-slate-900/90 sticky left-0 z-10">Konfirmasi</th>
                                 <th class="p-3.5 pl-3">Nama File DOM</th>
                                 <th class="p-3.5">No. DOM</th>
-                                <th class="p-3.5">Tgl Kirim</th>
+                                <th class="p-3.5">Document Date (Tgl Kirim)</th>
                                 <th class="p-3.5">Site Tujuan</th>
+                                <th class="p-3.5">Material Number</th>
                                 <th class="p-3.5">Nama Material</th>
                                 <th class="p-3.5 text-center">Qty Kirim</th>
                                 <th class="p-3.5 text-center">No. GR</th>
@@ -562,14 +570,6 @@
                 </div>
             </div>
 
-        </div>
-
-        <!-- Notification Toast -->
-        <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-4 py-3 rounded-xl text-xs sm:text-sm shadow-2xl hidden flex items-center gap-3 border border-slate-700 z-50 transition-all">
-            <div id="toastIcon" class="p-1 rounded-lg bg-emerald-500/20 text-emerald-400">
-                <i data-lucide="check-circle" class="w-4 h-4"></i>
-            </div>
-            <span id="toastMsg" class="font-medium">Notifikasi</span>
         </div>
 
         <!-- MODAL GENERATE REPORT JPG -->
@@ -894,17 +894,17 @@
                 {
                     filename: "DOM_Samarinda_Batch1.xlsx",
                     data: [
-                        { "Inbound Num.": "18000101", "Inbound Item": "10", "Document Date": "2026-10-01", "Plant": "Sangatta", "Material Description": "Filter Fuel Fleetguard", "Qty Inbound Delivery": 50 },
-                        { "Inbound Num.": "18000102", "Inbound Item": "10", "Document Date": "2026-10-02", "Plant": "Sangatta", "Material Description": "Oil Filter Cat 320D", "Qty Inbound Delivery": 20 },
-                        { "Inbound Num.": "18000103", "Inbound Item": "10", "Document Date": "2026-10-03", "Plant": "Kutai Barat", "Material Description": "Hydraulic Hose 3/4", "Qty Inbound Delivery": 15 }
+                        { "Inbound Num.": "18000101", "Inbound Item": "10", "Document Date": "26.10.2026", "Plant": "Sangatta", "Material Number": "MAT-8801", "Material Description": "Filter Fuel Fleetguard", "Qty Inbound Delivery": 50 },
+                        { "Inbound Num.": "18000102", "Inbound Item": "10", "Document Date": "2026-10-02", "Plant": "Sangatta", "Material Number": "MAT-8802", "Material Description": "Oil Filter Cat 320D", "Qty Inbound Delivery": 20 },
+                        { "Inbound Num.": "18000103", "Inbound Item": "10", "Document Date": 46300, "Plant": "Kutai Barat", "Material Number": "MAT-8803", "Material Description": "Hydraulic Hose 3/4", "Qty Inbound Delivery": 15 }
                     ]
                 },
                 {
                     filename: "DOM_Samarinda_Batch2.xlsx",
                     data: [
-                        { "Inbound Num.": "18000104", "Inbound Item": "10", "Document Date": "2026-10-04", "Plant": "Tabang", "Material Description": "Brake Pad Komatsu HD785", "Qty Inbound Delivery": 8 },
-                        { "Inbound Num.": "18000105", "Inbound Item": "10", "Document Date": "2026-10-05", "Plant": "Kutai Barat", "Material Description": "Grease High Temp 18kg", "Qty Inbound Delivery": 10 },
-                        { "Inbound Num.": "18000106", "Inbound Item": "10", "Document Date": "2026-10-06", "Plant": "Tabang", "Material Description": "Tooth Bucket CAT349", "Qty Inbound Delivery": 24 }
+                        { "Inbound Num.": "18000104", "Inbound Item": "10", "Document Date": "2026-10-04", "Plant": "Tabang", "Material Number": "MAT-8804", "Material Description": "Brake Pad Komatsu HD785", "Qty Inbound Delivery": 8 },
+                        { "Inbound Num.": "18000105", "Inbound Item": "10", "Document Date": "2026-10-05", "Plant": "Kutai Barat", "Material Number": "MAT-8805", "Material Description": "Grease High Temp 18kg", "Qty Inbound Delivery": 10 },
+                        { "Inbound Num.": "18000106", "Inbound Item": "10", "Document Date": "2026-10-06", "Plant": "Tabang", "Material Number": "MAT-8806", "Material Description": "Tooth Bucket CAT349", "Qty Inbound Delivery": 24 }
                     ]
                 }
             ];
@@ -913,7 +913,7 @@
                 {
                     filename: "FB_DOM_Site_Sangatta.xlsx",
                     data: [
-                        { "Inbound Num.": "18000101", "Inbound Item": "10", "GR NUMBER": "5000000131", "Qty Inbound Delivery": 50, "GR Date": "2026-10-03" },
+                        { "Inbound Num.": "18000101", "Inbound Item": "10", "GR NUMBER": "5000000131", "Qty Inbound Delivery": 50, "GR Date": "2026-10-28" },
                         { "Inbound Num.": "18000102", "Inbound Item": "10", "GR NUMBER": "5000000132", "Qty Inbound Delivery": 18, "GR Date": "2026-10-04" }
                     ]
                 },
@@ -946,6 +946,72 @@
                 }
             }
             return null;
+        }
+
+        function formatDateValue(val) {
+            if (val === null || val === undefined || val === '') return '-';
+            
+            // Jika nilai berupa angka (Format Serial Date Excel, contoh: 45200)
+            if (typeof val === 'number') {
+                const parsedDate = XLSX.SSF.parse_date_code(val);
+                if (parsedDate) {
+                    const d = String(parsedDate.d).padStart(2, '0');
+                    const m = String(parsedDate.m).padStart(2, '0');
+                    const y = parsedDate.y;
+                    return `${d}/${m}/${y}`;
+                }
+            }
+
+            let str = val.toString().trim();
+            if (!str || str === '-') return '-';
+
+            // Jika format DD.MM.YYYY (contoh: 26.10.2026) -> ubah ke DD/MM/YYYY
+            if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(str)) {
+                const parts = str.split('.');
+                const d = parts[0].padStart(2, '0');
+                const m = parts[1].padStart(2, '0');
+                return `${d}/${m}/${parts[2]}`;
+            }
+
+            // Jika format YYYY-MM-DD
+            if (/^\d{4}-\d{1,2}-\d{1,2}/.test(str)) {
+                const parts = str.split('T')[0].split('-');
+                const d = parts[2].padStart(2, '0');
+                const m = parts[1].padStart(2, '0');
+                return `${d}/${m}/${parts[0]}`;
+            }
+
+            // Jika format DD/MM/YYYY
+            if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
+                const parts = str.split('/');
+                const d = parts[0].padStart(2, '0');
+                const m = parts[1].padStart(2, '0');
+                return `${d}/${m}/${parts[2]}`;
+            }
+
+            // Fallback dengan Date Object JavaScript
+            const dt = new Date(str);
+            if (!isNaN(dt.getTime())) {
+                const d = String(dt.getDate()).padStart(2, '0');
+                const m = String(dt.getMonth() + 1).padStart(2, '0');
+                const y = dt.getFullYear();
+                return `${d}/${m}/${y}`;
+            }
+
+            return str;
+        }
+
+        function parseDateForDiff(dateStr) {
+            if (!dateStr || dateStr === '-') return null;
+            let str = dateStr.toString().trim();
+
+            if (/^\d{1,2}[\/\.]\d{1,2}[\/\.]\d{4}$/.test(str)) {
+                const parts = str.split(/[\/\.]/);
+                return new Date(parts[2], parts[1] - 1, parts[0]);
+            }
+
+            const dt = new Date(str);
+            return isNaN(dt.getTime()) ? null : dt;
         }
 
         function normalizeKey(val) {
@@ -998,9 +1064,25 @@
                     const cleanItem = normalizeKey(rawInboundItem);
                     const compositeKey = cleanItem ? `${cleanNum}_${cleanItem}` : cleanNum;
 
-                    const tglKirim = getPropValue(dom, ['Document Date', 'DocumentDate', 'TglKirim', 'Tanggal Kirim', 'Date']) || '-';
+                    // Mengutamakan Document Date secara ketat & memformat nilainya
+                    const rawDocDate = getPropValue(dom, ['Document Date', 'DocumentDate', 'Doc Date', 'DocDate']) || getPropValue(dom, ['TglKirim', 'Tanggal Kirim', 'Date']);
+                    const tglKirim = formatDateValue(rawDocDate);
+
                     const site = getPropValue(dom, ['Plant', 'Site', 'Site Tujuan', 'Destination', 'Location']) || 'Site Tujuan';
-                    const itemDesc = getPropValue(dom, ['Material Description', 'Material Description ', 'MaterialNumber', 'Material Number', 'Item', 'Nama Barang', 'Material']) || 'Sparepart General';
+                    
+                    // Pembacaan khusus Material Number & Material Description agar tidak saling tertukar
+                    let matNum = getPropValue(dom, ['Material Number', 'MaterialNumber', 'Material No', 'Material No.', 'Mat Num', 'Part Number', 'Part No', 'No Material', 'No. Material', 'Kode Barang']);
+                    let itemDesc = getPropValue(dom, ['Material Description', 'Material Description ', 'Nama Barang', 'Nama Material', 'Description', 'Item']);
+
+                    // Jika salah satu kosong/terbalik, pastikan fallback yang tepat
+                    if (!matNum && !itemDesc) {
+                        matNum = getPropValue(dom, ['Material']);
+                        itemDesc = 'Sparepart General';
+                    } else {
+                        matNum = matNum || '-';
+                        itemDesc = itemDesc || 'Sparepart General';
+                    }
+
                     const qtyKirim = Number(getPropValue(dom, ['Qty Inbound Delivery', 'QtyInboundDelivery', 'QtyKirim', 'Qty Kirim', 'QTY', 'Qty']) || 0);
 
                     // Match with combined FB DOM map
@@ -1013,7 +1095,7 @@
 
                     // Detect GR NUMBER & GR Date
                     let rawGRNumber = '';
-                    let tglGR = '-';
+                    let rawGRDate = '-';
                     if (fb) {
                         const detectedGR = getPropValue(fb, [
                             'GR NUMBER', 'GR NUMBER ', 'GRNumber', 'NoGR', 'No. GR', 'No GR', 
@@ -1022,8 +1104,10 @@
                         if (detectedGR !== null && detectedGR !== undefined) {
                             rawGRNumber = detectedGR.toString().trim();
                         }
-                        tglGR = getPropValue(fb, ['GR Date', 'GRDate', 'Tgl GR', 'Tanggal GR', 'Date GR', 'Tgl Terima', 'Posting Date']) || '-';
+                        rawGRDate = getPropValue(fb, ['GR Date', 'GRDate', 'Tgl GR', 'Tanggal GR', 'Date GR', 'Tgl Terima', 'Posting Date']) || '-';
                     }
+
+                    const tglGR = formatDateValue(rawGRDate);
 
                     const isGRValid = /^5\d*/.test(rawGRNumber) || (tglGR !== '-' && tglGR !== '' && !tglGR.toString().toLowerCase().includes('pending'));
                     let noGR = isGRValid ? (rawGRNumber || 'GR CONFIRMED') : '-';
@@ -1057,9 +1141,9 @@
 
                     let leadTimeDays = "-";
                     if (tglKirim !== '-' && tglGR !== '-' && isGRValid) {
-                        const d1 = new Date(tglKirim);
-                        const d2 = new Date(tglGR);
-                        if (!isNaN(d1) && !isNaN(d2)) {
+                        const d1 = parseDateForDiff(tglKirim);
+                        const d2 = parseDateForDiff(tglGR);
+                        if (d1 && d2) {
                             const diffTime = Math.abs(d2 - d1);
                             leadTimeDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + " Hari";
                         }
@@ -1073,6 +1157,7 @@
                             noDom: rawInboundNum,
                             tglKirim,
                             site,
+                            matNum,
                             item: itemDesc,
                             qtyKirim,
                             noGR,
@@ -1092,534 +1177,563 @@
             });
         }
 
-        function populateSourceFileFilter() {
-            const select = document.getElementById('filterSourceFile');
-            select.innerHTML = '<option value="ALL" class="bg-slate-900">Semua File DOM</option>';
-            
-            const uniqueFiles = [...new Set(processedData.map(d => d.sourceDomFile))];
-            uniqueFiles.forEach(file => {
-                const opt = document.createElement('option');
-                opt.value = file;
-                opt.className = "bg-slate-900";
-                opt.innerText = file;
-                select.appendChild(opt);
-            });
-        }
-
+        // ==========================================
+        // UI & NAVIGATION FUNCTIONS
+        // ==========================================
         function showDashboard() {
             processData();
+            if (processedData.length === 0) {
+                showToast("Tidak ada data valid yang dapat diproses dari file DOM!");
+                return;
+            }
+
             document.getElementById('uploadView').classList.add('hidden');
             document.getElementById('dashboardView').classList.remove('hidden');
 
-            document.getElementById('stepBadge1').className = "flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/80 text-slate-400 border border-slate-700/50";
-            document.getElementById('stepBadge2').className = "flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30";
+            const step1 = document.getElementById('stepBadge1');
+            const step2 = document.getElementById('stepBadge2');
+            if (step1 && step2) {
+                step1.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/80 text-slate-500 border border-slate-700/50";
+                step2.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30";
+            }
 
-            populateSourceFileFilter();
-            renderKPIs();
-            renderTable(processedData);
-            renderCharts();
-            lucide.createIcons();
+            populateSourceFileDropdown();
+            renderDashboard();
 
-            if (window.saveDataToCloud && processedData.length > 0) {
+            if (window.saveDataToCloud) {
                 window.saveDataToCloud(processedData);
             }
-        }
-
-        function loadFromCloud() {
-            if (window.latestCloudData && window.latestCloudData.length > 0) {
-                const cloudSummary = window.latestCloudData.find(d => d.items) || window.latestCloudData[0];
-                if (cloudSummary && cloudSummary.items) {
-                    processedData = cloudSummary.items;
-                    document.getElementById('uploadView').classList.add('hidden');
-                    document.getElementById('dashboardView').classList.remove('hidden');
-                    populateSourceFileFilter();
-                    renderKPIs();
-                    renderTable(processedData);
-                    renderCharts();
-                    lucide.createIcons();
-                    showToast("Data rekonsiliasi terbaru berhasil ditarik dari Cloud DB!");
-                    return;
-                }
-            }
-            showToast("Belum ada data rekonsiliasi di Cloud DB. Silakan upload file terlebih dahulu.");
         }
 
         function resetApp() {
             document.getElementById('dashboardView').classList.add('hidden');
             document.getElementById('uploadView').classList.remove('hidden');
 
-            document.getElementById('stepBadge1').className = "flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30";
-            document.getElementById('stepBadge2').className = "flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/80 text-slate-500 border border-slate-700/50";
+            const step1 = document.getElementById('stepBadge1');
+            const step2 = document.getElementById('stepBadge2');
+            if (step1 && step2) {
+                step1.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30";
+                step2.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/80 text-slate-500 border border-slate-700/50";
+            }
         }
 
-        function renderKPIs() {
-            const totalItemCount = processedData.length;
+        function populateSourceFileDropdown() {
+            const dropdown = document.getElementById('filterSourceFile');
+            if (!dropdown) return;
+
+            const files = [...new Set(processedData.map(d => d.sourceDomFile))];
+            dropdown.innerHTML = `<option value="ALL" class="bg-slate-900">Semua File DOM (${files.length})</option>` +
+                files.map(f => `<option value="${f}" class="bg-slate-900">${f}</option>`).join('');
+        }
+
+        // ==========================================
+        // DASHBOARD RENDER & CHARTS
+        // ==========================================
+        function renderDashboard() {
+            renderKPICards();
+            renderTable();
+            renderPlantChart();
+        }
+
+        function renderKPICards() {
+            const totalItems = processedData.length;
             const completedItems = processedData.filter(d => d.statusGR === 'Complete').length;
+            const discrepancyItems = processedData.filter(d => d.statusGR === 'Partial');
             const pendingItems = processedData.filter(d => d.statusGR === 'Pending').length;
-            const partialItemCount = processedData.filter(d => d.statusGR === 'Partial' || d.selisih !== 0).length;
-            const totalDiscrepancyQty = processedData.reduce((acc, curr) => acc + (curr.selisih > 0 ? curr.selisih : 0), 0);
 
-            const uniqueDomFilesCount = new Set(processedData.map(d => d.sourceDomFile)).size;
+            const completedPct = totalItems > 0 ? ((completedItems / totalItems) * 100).toFixed(1) : 0;
+            const totalDiscrepancyQty = discrepancyItems.reduce((acc, d) => acc + Math.abs(d.selisih), 0);
 
-            document.getElementById('kpiTotalDom').innerText = totalItemCount + " Item";
-            document.getElementById('kpiDomFilesCount').innerText = `Dari ${uniqueDomFilesCount} file DOM`;
-            document.getElementById('kpiCompleted').innerText = completedItems + " Item";
-            document.getElementById('kpiCompletedPct').innerText = totalItemCount > 0 ? Math.round((completedItems / totalItemCount) * 100) + "% dari total item" : "0%";
-            document.getElementById('kpiDiscrepancyItemsCount').innerText = partialItemCount + " Item";
-            document.getElementById('kpiDiscrepancyQty').innerText = totalDiscrepancyQty + " Pcs";
-            document.getElementById('kpiPending').innerText = pendingItems + " Item";
+            // Lead Time Calculation
+            const validLTs = processedData
+                .map(d => parseInt(d.leadTimeDays))
+                .filter(n => !isNaN(n));
+            const avgLT = validLTs.length > 0 ? (validLTs.reduce((a, b) => a + b, 0) / validLTs.length).toFixed(1) : 0;
 
-            let leadTimes = processedData.filter(d => d.leadTimeDays !== '-').map(d => parseInt(d.leadTimeDays));
-            let avgLT = leadTimes.length ? (leadTimes.reduce((a, b) => a + b, 0) / leadTimes.length).toFixed(1) : "0";
-            document.getElementById('kpiLeadTime').innerText = avgLT + " Hari";
+            document.getElementById('kpiTotalDom').innerText = `${totalItems} Item`;
+            document.getElementById('kpiDomFilesCount').innerText = `Dari ${domFilesList.length} file DOM`;
 
-            document.getElementById('summaryFilesBadge').innerText = `• Combined ${uniqueDomFilesCount} File DOM & ${fbDomFilesList.length} File FB DOM`;
-        }
+            document.getElementById('kpiCompleted').innerText = `${completedItems} Item`;
+            document.getElementById('kpiCompletedPct').innerText = `${completedPct}% dari total item`;
 
-        function renderTable(data) {
-            const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = '';
+            document.getElementById('kpiDiscrepancyItemsCount').innerText = `${discrepancyItems.length} Item`;
+            document.getElementById('kpiDiscrepancyQty').innerText = `${totalDiscrepancyQty} Pcs`;
 
-            if (data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="12" class="p-6 text-center text-slate-500">Data pencocokan tidak ditemukan</td></tr>`;
-                return;
-            }
+            document.getElementById('kpiPending').innerText = `${pendingItems} Item`;
+            document.getElementById('kpiLeadTime').innerText = `${avgLT} Hari`;
 
-            data.forEach(row => {
-                let statusBadge = '';
-                if (row.statusGR === 'Complete') {
-                    statusBadge = `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center gap-1"><i data-lucide="check-circle-2" class="w-3 h-3"></i> COMPLETE</span>`;
-                } else if (row.statusGR === 'Partial') {
-                    statusBadge = `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">SELISIH</span>`;
-                } else {
-                    statusBadge = `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">PENDING GR</span>`;
-                }
-
-                const isChecked = row.manuallyConfirmed || row.statusGR === 'Complete';
-
-                const tr = document.createElement('tr');
-                tr.className = `hover:bg-slate-800/40 transition-colors ${row.manuallyConfirmed ? 'bg-emerald-950/20' : ''}`;
-                tr.innerHTML = `
-                    <td class="p-3.5 text-center sticky left-0 bg-slate-950/80 backdrop-blur z-10">
-                        <input type="checkbox" ${isChecked ? 'checked' : ''} 
-                            onchange="toggleConfirmItem('${row.id}', this.checked)"
-                            title="Centang untuk konfirmasi manual GR item ini"
-                            class="w-4 h-4 accent-emerald-500 rounded cursor-pointer transition-transform hover:scale-110">
-                    </td>
-                    <td class="p-3.5 pl-3 text-slate-400 font-mono text-[11px] truncate max-w-[130px]" title="${row.sourceDomFile}">${row.sourceDomFile}</td>
-                    <td class="p-3.5 font-mono font-semibold text-slate-200">${row.noDom}</td>
-                    <td class="p-3.5 text-slate-400">${row.tglKirim}</td>
-                    <td class="p-3.5 text-slate-300 font-medium">${row.site}</td>
-                    <td class="p-3.5 text-slate-300">${row.item}</td>
-                    <td class="p-3.5 text-center font-mono font-medium">${row.qtyKirim}</td>
-                    <td class="p-3.5 text-center font-mono font-semibold ${row.statusGR === 'Complete' ? 'text-emerald-400' : 'text-slate-400'}">${row.noGR}</td>
-                    <td class="p-3.5 text-center font-mono font-medium">${row.qtyGR}</td>
-                    <td class="p-3.5 text-center font-mono font-bold ${row.selisih > 0 ? 'text-rose-400' : 'text-slate-400'}">${row.selisih}</td>
-                    <td class="p-3.5 text-center">${statusBadge}</td>
-                    <td class="p-3.5 text-center text-slate-400 pr-5 font-mono">${row.leadTimeDays}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-            lucide.createIcons();
-        }
-
-        function toggleConfirmItem(itemId, isChecked) {
-            const target = processedData.find(d => d.id === itemId);
-            if (!target) return;
-
-            if (isChecked) {
-                target.manuallyConfirmed = true;
-                target.statusGR = 'Complete';
-                target.qtyGR = target.qtyKirim;
-                target.selisih = 0;
-                if (!target.noGR || target.noGR === '-') {
-                    target.noGR = 'GR CONFIRMED';
-                }
-                showToast(`Item ${target.noDom} (${target.item}) berhasil dikonfirmasi ke Complete GR!`);
-            } else {
-                target.manuallyConfirmed = false;
-                target.statusGR = target.originalStatusGR;
-                target.qtyGR = target.originalQtyGR;
-                target.selisih = target.originalSelisih;
-                target.noGR = target.originalNoGR;
-                showToast(`Status konfirmasi item ${target.noDom} dibatalkan.`);
-            }
-
-            renderKPIs();
-            renderCharts();
-            filterTable();
-
-            if (window.saveDataToCloud && processedData.length > 0) {
-                window.saveDataToCloud(processedData);
+            const summaryFilesBadge = document.getElementById('summaryFilesBadge');
+            if (summaryFilesBadge) {
+                summaryFilesBadge.innerText = `• Processing ${domFilesList.length} File DOM & ${fbDomFilesList.length} FB Site`;
             }
         }
 
         function filterTable() {
-            const query = document.getElementById('searchInput').value.toLowerCase().trim();
-            const statusFilter = document.getElementById('filterStatus').value;
-            const fileFilter = document.getElementById('filterSourceFile').value;
-
-            const chkPending = document.getElementById('chkPending')?.checked ?? true;
-            const chkPartial = document.getElementById('chkPartial')?.checked ?? true;
-            const chkDelayed = document.getElementById('chkDelayed')?.checked ?? true;
-            const chkComplete = document.getElementById('chkComplete')?.checked ?? true;
-
-            const filtered = processedData.filter(item => {
-                // 1. Filter Pencarian Text
-                const noDom = (item.noDom || '').toString().toLowerCase();
-                const site = (item.site || '').toString().toLowerCase();
-                const noGR = (item.noGR || '').toString().toLowerCase();
-                const itemDesc = (item.item || '').toString().toLowerCase();
-                const sourceFile = (item.sourceDomFile || '').toString().toLowerCase();
-
-                const matchQuery = !query || 
-                    noDom.includes(query) ||
-                    site.includes(query) ||
-                    noGR.includes(query) ||
-                    itemDesc.includes(query) ||
-                    sourceFile.includes(query);
-
-                // 2. Filter Dropdown Status & File
-                const matchStatus = statusFilter === 'ALL' || item.statusGR === statusFilter;
-                const matchFile = fileFilter === 'ALL' || item.sourceDomFile === fileFilter;
-
-                // 3. Filter Checkbox Multiple Choice
-                const isPending = item.statusGR === 'Pending';
-                const isPartial = item.statusGR === 'Partial' || item.selisih !== 0;
-                const isComplete = item.statusGR === 'Complete' && item.selisih === 0;
-                
-                let leadTimeNum = 0;
-                if (item.leadTimeDays && item.leadTimeDays !== '-') {
-                    leadTimeNum = parseInt(item.leadTimeDays) || 0;
-                }
-                const isDelayed = leadTimeNum > 3;
-
-                // Logika penyaringan Checkbox: Item ditampilkan jika memenuhi salah satu opsi yang dicentang
-                let matchCheckboxes = false;
-                if (chkPending && isPending) matchCheckboxes = true;
-                if (chkPartial && isPartial) matchCheckboxes = true;
-                if (chkComplete && isComplete) matchCheckboxes = true;
-                if (chkDelayed && isDelayed) matchCheckboxes = true;
-
-                return matchQuery && matchStatus && matchFile && matchCheckboxes;
-            });
-
-            renderTable(filtered);
+            renderTable();
         }
 
-        // Helper Utility untuk memeriksa baris header / footer saat pembacaan file
-        function isHeaderOrFooterRow(val) {
-            if (!val) return true;
-            const str = val.toString().toLowerCase().trim();
-            const invalidKeywords = ['no', 'number', 'material', 'description', 'total', 'grand total', 'subtotal', 'keterangan', 'inbound num', 'plant'];
-            return invalidKeywords.some(kw => str === kw);
-        }
-
-        function selectAllProblematicFilters(onlyProblems) {
-            const chkPending = document.getElementById('chkPending');
-            const chkPartial = document.getElementById('chkPartial');
-            const chkDelayed = document.getElementById('chkDelayed');
-            const chkComplete = document.getElementById('chkComplete');
-
-            if (onlyProblems) {
-                if (chkPending) chkPending.checked = true;
-                if (chkPartial) chkPartial.checked = true;
-                if (chkDelayed) chkDelayed.checked = true;
-                if (chkComplete) chkComplete.checked = false;
-                showToast("Menampilkan item-item bermasalah");
-            } else {
-                if (chkPending) chkPending.checked = true;
-                if (chkPartial) chkPartial.checked = true;
-                if (chkDelayed) chkDelayed.checked = true;
-                if (chkComplete) chkComplete.checked = true;
-                showToast("Menampilkan seluruh data pengiriman");
-            }
-
+        function selectAllProblematicFilters(select) {
+            document.getElementById('chkPending').checked = select;
+            document.getElementById('chkPartial').checked = select;
+            document.getElementById('chkDelayed').checked = select;
+            document.getElementById('chkComplete').checked = select;
             filterTable();
         }
 
-        function renderCharts() {
-            const ctx2 = document.getElementById('chartPlant').getContext('2d');
+        function getFilteredData() {
+            const selectedSource = document.getElementById('filterSourceFile').value;
+            const searchText = document.getElementById('searchInput').value.toLowerCase().trim();
+            const statusFilter = document.getElementById('filterStatus').value;
 
-            if (chartPlantInstance) chartPlantInstance.destroy();
+            const chkPending = document.getElementById('chkPending').checked;
+            const chkPartial = document.getElementById('chkPartial').checked;
+            const chkDelayed = document.getElementById('chkDelayed').checked;
+            const chkComplete = document.getElementById('chkComplete').checked;
 
-            const plantCounts = {};
+            return processedData.filter(d => {
+                // Source file filter
+                if (selectedSource !== 'ALL' && d.sourceDomFile !== selectedSource) return false;
 
-            processedData.forEach(d => {
-                const site = d.site || 'Lainnya';
-                if (!plantCounts[site]) {
-                    plantCounts[site] = { Complete: 0, Partial: 0, Pending: 0 };
+                // Status dropdown filter
+                if (statusFilter !== 'ALL' && d.statusGR !== statusFilter) return false;
+
+                // Search text filter
+                if (searchText) {
+                    const matchText = `${d.noDom} ${d.noGR} ${d.site} ${d.matNum} ${d.item} ${d.sourceDomFile}`.toLowerCase();
+                    if (!matchText.includes(searchText)) return false;
                 }
-                plantCounts[site][d.statusGR]++;
-            });
 
-            // Diagram Batang Per Plant / Site
-            const plantLabels = Object.keys(plantCounts);
-            const completeData = plantLabels.map(p => plantCounts[p].Complete);
-            const partialData = plantLabels.map(p => plantCounts[p].Partial);
-            const pendingData = plantLabels.map(p => plantCounts[p].Pending);
+                // Checkbox filters
+                const isDelayed = parseInt(d.leadTimeDays) > 3;
+                let passesCheckbox = false;
 
-            chartPlantInstance = new Chart(ctx2, {
-                type: 'bar',
-                plugins: [ChartDataLabels],
-                data: {
-                    labels: plantLabels,
-                    datasets: [
-                        { label: 'Complete (Sesuai)', data: completeData, backgroundColor: '#10b981', borderRadius: 6 },
-                        { label: 'Selisih Qty', data: partialData, backgroundColor: '#f43f5e', borderRadius: 6 },
-                        { label: 'Pending GR', data: pendingData, backgroundColor: '#f59e0b', borderRadius: 6 }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: {
-                            ticks: { color: '#e2e8f0', font: { family: 'Plus Jakarta Sans', size: 12, weight: 'bold' } },
-                            grid: { display: false }
-                        },
-                        y: {
-                            ticks: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 11 }, precision: 0 },
-                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                            labels: { color: '#e2e8f0', font: { family: 'Plus Jakarta Sans', size: 12, weight: '600' }, padding: 15 }
-                        },
-                        datalabels: {
-                            color: '#ffffff',
-                            font: { family: 'Plus Jakarta Sans', weight: 'bold', size: 11 },
-                            anchor: 'end',
-                            align: 'top',
-                            formatter: (value) => value > 0 ? `${value} Item` : ''
-                        }
-                    }
-                }
+                if (chkPending && d.statusGR === 'Pending') passesCheckbox = true;
+                if (chkPartial && d.statusGR === 'Partial') passesCheckbox = true;
+                if (chkDelayed && isDelayed) passesCheckbox = true;
+                if (chkComplete && d.statusGR === 'Complete' && !isDelayed) passesCheckbox = true;
+
+                return passesCheckbox;
             });
         }
 
-        function exportReport() {
-            const ws = XLSX.utils.json_to_sheet(processedData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Rekap_Delivery_TO_GR");
-            XLSX.writeFile(wb, "Laporan_MultiFile_Delivery_to_GR.xlsx");
-            showToast("Laporan spreadsheet berhasil diunduh");
-        }
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            const dataToRender = getFilteredData();
 
-        // --- JPG REPORT GENERATION & MODAL FUNCTIONS ---
-        function openJpgModal() {
-            if (processedData.length === 0) {
-                showToast("Proses data terlebih dahulu sebelum membuat laporan JPG.");
+            if (dataToRender.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="13" class="p-8 text-center text-slate-500">
+                            <i data-lucide="search-x" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                            Tidak ada data yang sesuai dengan filter.
+                        </td>
+                    </tr>
+                `;
+                lucide.createIcons();
                 return;
             }
 
-            const modal = document.getElementById('jpgModal');
-            modal.classList.remove('hidden');
-
-            // Set date and source files
-            const today = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-            document.getElementById('reportDateText').innerText = "Tanggal: " + new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
-            if (document.getElementById('infoCutoffDate')) {
-                document.getElementById('infoCutoffDate').innerText = today;
-            }
-
-            const sourceDomFiles = [...new Set(processedData.map(d => d.sourceDomFile))].join(', ');
-            document.getElementById('reportSourceDomText').innerText = "Sumber Update: " + (sourceDomFiles || "DOM Samarinda File");
-
-            // Populate Report KPIs
-            const total = processedData.length;
-            const complete = processedData.filter(d => d.statusGR === 'Complete').length;
-            const partial = processedData.filter(d => d.statusGR === 'Partial' || d.selisih !== 0).length;
-            const pending = processedData.filter(d => d.statusGR === 'Pending').length;
-            const pendingAndBelum = pending + partial;
-
-            document.getElementById('repKpiTotal').innerText = total;
-            document.getElementById('repKpiComplete').innerText = complete;
-            document.getElementById('repKpiCompletePct').innerText = total > 0 ? Math.round((complete / total) * 100) + "% Sesuai" : "0%";
-            document.getElementById('repKpiPendingTotal').innerText = pendingAndBelum;
-            document.getElementById('repKpiPendingSubtext').innerText = `${pending} Pending • ${partial} Selisih Qty`;
-
-            // Dynamic Population for Extra Info Area
-            const pctComplete = total > 0 ? ((complete / total) * 100).toFixed(2) : "0.00";
-            const pctPendingPartial = total > 0 ? ((pendingAndBelum / total) * 100).toFixed(2) : "0.00";
-
-            if (document.getElementById('infoTotalDomItem')) {
-                document.getElementById('infoTotalDomItem').innerText = `${total} item (100.00%)`;
-            }
-            if (document.getElementById('infoGrItem')) {
-                document.getElementById('infoGrItem').innerText = `${complete} item (${pctComplete}%)`;
-            }
-            if (document.getElementById('infoPendingPartialItem')) {
-                document.getElementById('infoPendingPartialItem').innerText = `${pendingAndBelum} item (${pctPendingPartial}%)`;
-            }
-
-            if (document.getElementById('infoStatusAlertText')) {
-                if (pendingAndBelum === 0) {
-                    document.getElementById('infoStatusAlertText').innerHTML = "<b>Lengkap!</b> Seluruh item pengiriman dari Depo Samarinda telah ter-GR secara sesuai dan tidak ada kendala.";
-                    document.getElementById('infoStatusAlert').className = "mt-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-sans font-medium text-[11px] flex items-center gap-1.5";
+            tbody.innerHTML = dataToRender.map(d => {
+                let statusBadge = '';
+                if (d.statusGR === 'Complete') {
+                    statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Complete</span>`;
+                } else if (d.statusGR === 'Partial') {
+                    statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">Selisih (${d.selisih})</span>`;
                 } else {
-                    document.getElementById('infoStatusAlertText').innerHTML = `⚠️ <b>PERHATIAN & ACTION REQUIRED!</b> Terdapat <b>${pending} item Pending GR</b> dan <b>${partial} item Selisih Qty GR</b>. Mohon segera lakukan verifikasi & konfirmasi penerimaan fisik dengan team terkait!`;
-                    document.getElementById('infoStatusAlert').className = "mt-2 p-2.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-200 font-sans font-semibold text-[11px] flex items-center gap-1.5 shadow-md";
+                    statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">Pending</span>`;
                 }
-            }
 
-            // Render Report Canvas Charts
-            renderReportDiagrams(complete, partial, pending);
-
-            // Populate Report Table Breakdown (Baris 3: Persentase antar delivery vs GR masing-masing site)
-            const plantCounts = {};
-            processedData.forEach(d => {
-                const site = d.site || 'Lainnya';
-                if (!plantCounts[site]) plantCounts[site] = { total: 0, complete: 0, partial: 0, pending: 0 };
-                plantCounts[site].total++;
-                if (d.statusGR === 'Complete') plantCounts[site].complete++;
-                else if (d.statusGR === 'Partial' || d.selisih !== 0) plantCounts[site].partial++;
-                else plantCounts[site].pending++;
-            });
-
-            const tbody = document.getElementById('reportTableBody');
-            tbody.innerHTML = '';
-            Object.keys(plantCounts).forEach(site => {
-                const p = plantCounts[site];
-                const totalBelumPending = p.partial + p.pending;
-                const pct = p.total > 0 ? Math.round((p.complete / p.total) * 100) : 0;
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="p-2.5 pl-4 font-sans font-medium text-slate-200">${site}</td>
-                    <td class="p-2.5 text-center">${p.total}</td>
-                    <td class="p-2.5 text-center text-emerald-400 font-bold">${p.complete}</td>
-                    <td class="p-2.5 text-center text-rose-400 font-bold">${p.partial}</td>
-                    <td class="p-2.5 text-center text-amber-400 font-bold">${totalBelumPending}</td>
-                    <td class="p-2.5 text-center pr-4 font-sans font-bold ${pct >= 80 ? 'text-emerald-400' : 'text-amber-400'}">${pct}%</td>
+                return `
+                    <tr class="hover:bg-slate-900/60 transition-colors">
+                        <td class="p-3 text-center sticky left-0 bg-slate-950/80">
+                            <input type="checkbox" ${d.manuallyConfirmed ? 'checked' : ''} onchange="toggleManualConfirm('${d.id}')" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
+                        </td>
+                        <td class="p-3 font-mono text-[11px] text-slate-400 truncate max-w-[140px]" title="${d.sourceDomFile}">${d.sourceDomFile}</td>
+                        <td class="p-3 font-bold text-white font-mono">${d.noDom}</td>
+                        <td class="p-3 text-slate-300 font-mono">${d.tglKirim}</td>
+                        <td class="p-3 font-semibold text-emerald-400">${d.site}</td>
+                        <td class="p-3 text-slate-300 font-mono">${d.matNum}</td>
+                        <td class="p-3 text-slate-200 font-medium">${d.item}</td>
+                        <td class="p-3 text-center font-bold text-white">${d.qtyKirim}</td>
+                        <td class="p-3 text-center font-mono ${d.noGR !== '-' ? 'text-emerald-400 font-bold' : 'text-slate-500'}">${d.noGR}</td>
+                        <td class="p-3 text-center font-bold ${d.qtyGR > 0 ? 'text-emerald-400' : 'text-slate-500'}">${d.qtyGR}</td>
+                        <td class="p-3 text-center font-bold ${d.selisih !== 0 ? 'text-rose-400' : 'text-slate-400'}">${d.selisih}</td>
+                        <td class="p-3 text-center">${statusBadge}</td>
+                        <td class="p-3 text-center font-mono text-slate-400 pr-5">${d.leadTimeDays}</td>
+                    </tr>
                 `;
-                tbody.appendChild(tr);
-            });
+            }).join('');
 
             lucide.createIcons();
         }
 
-        // Render Canvas-based Visual Diagrams for JPG Report Capture
-        function renderReportDiagrams(complete, partial, pending) {
-            const cvs2 = document.getElementById('reportChartPlantCanvas');
-            if (!cvs2) return;
+        function toggleManualConfirm(id) {
+            const item = processedData.find(d => d.id === id);
+            if (!item) return;
 
-            if (reportChartPlantInstance) {
-                reportChartPlantInstance.destroy();
+            item.manuallyConfirmed = !item.manuallyConfirmed;
+            if (item.manuallyConfirmed) {
+                item.statusGR = 'Complete';
+                item.noGR = item.noGR === '-' ? 'MANUAL-CONFIRMED' : item.noGR;
+                item.qtyGR = item.qtyKirim;
+                item.selisih = 0;
+            } else {
+                item.statusGR = item.originalStatusGR;
+                item.noGR = item.originalNoGR;
+                item.qtyGR = item.originalQtyGR;
+                item.selisih = item.originalSelisih;
             }
 
-            const plantCounts = {};
-            processedData.forEach(d => {
-                const site = d.site || 'Lainnya';
-                if (!plantCounts[site]) plantCounts[site] = { complete: 0, partial: 0, pending: 0 };
-                if (d.statusGR === 'Complete') plantCounts[site].complete++;
-                else if (d.statusGR === 'Partial' || d.selisih !== 0) plantCounts[site].partial++;
-                else plantCounts[site].pending++;
-            });
+            renderDashboard();
+            showToast(`Status konfirmasi item ${item.noDom} diperbarui!`);
+        }
 
-            const sites = Object.keys(plantCounts);
-            const completeData = sites.map(s => plantCounts[s].complete);
-            const partialData = sites.map(s => plantCounts[s].partial);
-            const pendingData = sites.map(s => plantCounts[s].pending);
+        function renderPlantChart() {
+            const ctx = document.getElementById('chartPlant');
+            if (!ctx) return;
 
-            const ctx = cvs2.getContext('2d');
+            const modeSelect = document.getElementById('chartGroupMode');
+            const mode = modeSelect ? modeSelect.value : 'date_plant';
 
-            reportChartPlantInstance = new Chart(ctx, {
+            let groupKeys = [];
+
+            if (mode === 'date_plant') {
+                const setKeys = new Set();
+                processedData.forEach(d => {
+                    setKeys.add(`${d.tglKirim} - ${d.site}`);
+                });
+                groupKeys = Array.from(setKeys).sort();
+            } else if (mode === 'date_only') {
+                const setKeys = new Set();
+                processedData.forEach(d => setKeys.add(d.tglKirim));
+                groupKeys = Array.from(setKeys).sort();
+            } else {
+                const setKeys = new Set();
+                processedData.forEach(d => setKeys.add(d.site));
+                groupKeys = Array.from(setKeys).sort();
+            }
+
+            let datasets = [];
+
+            if (mode === 'date_plant' || mode === 'date_only') {
+                // Tampilkan breakdown Status GR per Tanggal & Plant (Ter-GR, Selisih GR, Pending GR)
+                const completeData = groupKeys.map(key => {
+                    return processedData.filter(d => 
+                        (mode === 'date_plant' ? `${d.tglKirim} - ${d.site}` === key : d.tglKirim === key) && 
+                        d.statusGR === 'Complete'
+                    ).length;
+                });
+
+                const partialData = groupKeys.map(key => {
+                    return processedData.filter(d => 
+                        (mode === 'date_plant' ? `${d.tglKirim} - ${d.site}` === key : d.tglKirim === key) && 
+                        d.statusGR === 'Partial'
+                    ).length;
+                });
+
+                const pendingData = groupKeys.map(key => {
+                    return processedData.filter(d => 
+                        (mode === 'date_plant' ? `${d.tglKirim} - ${d.site}` === key : d.tglKirim === key) && 
+                        d.statusGR === 'Pending'
+                    ).length;
+                });
+
+                datasets = [
+                    {
+                        label: 'Ter-GR (Sesuai)',
+                        data: completeData,
+                        backgroundColor: '#10b981',
+                        borderColor: '#34d399',
+                        borderWidth: 1,
+                        borderRadius: 3
+                    },
+                    {
+                        label: 'Selisih GR (Tidak Sesuai)',
+                        data: partialData,
+                        backgroundColor: '#f43f5e',
+                        borderColor: '#fb7185',
+                        borderWidth: 1,
+                        borderRadius: 3
+                    },
+                    {
+                        label: 'Pending / Belum GR',
+                        data: pendingData,
+                        backgroundColor: '#f59e0b',
+                        borderColor: '#fbbf24',
+                        borderWidth: 1,
+                        borderRadius: 3
+                    }
+                ];
+            } else {
+                // Mode per Plant (Ringkas): Breakdown Ter-GR vs Selisih vs Pending per Plant
+                const completeData = groupKeys.map(plant => processedData.filter(d => d.site === plant && d.statusGR === 'Complete').length);
+                const partialData = groupKeys.map(plant => processedData.filter(d => d.site === plant && d.statusGR === 'Partial').length);
+                const pendingData = groupKeys.map(plant => processedData.filter(d => d.site === plant && d.statusGR === 'Pending').length);
+
+                datasets = [
+                    {
+                        label: 'Ter-GR (Sesuai)',
+                        data: completeData,
+                        backgroundColor: '#10b981',
+                        borderColor: '#34d399',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Selisih GR (Tidak Sesuai)',
+                        data: partialData,
+                        backgroundColor: '#f43f5e',
+                        borderColor: '#fb7185',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Pending / Belum GR',
+                        data: pendingData,
+                        backgroundColor: '#f59e0b',
+                        borderColor: '#fbbf24',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }
+                ];
+            }
+
+            if (chartPlantInstance) {
+                chartPlantInstance.destroy();
+            }
+
+            chartPlantInstance = new Chart(ctx, {
                 type: 'bar',
-                plugins: [ChartDataLabels],
                 data: {
-                    labels: sites,
-                    datasets: [
-                        { label: 'Complete (Sesuai)', data: completeData, backgroundColor: '#10b981', borderRadius: 4 },
-                        { label: 'Selisih Qty', data: partialData, backgroundColor: '#f43f5e', borderRadius: 4 },
-                        { label: 'Pending GR', data: pendingData, backgroundColor: '#f59e0b', borderRadius: 4 }
-                    ]
+                    labels: groupKeys,
+                    datasets: datasets
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    devicePixelRatio: window.devicePixelRatio > 1 ? window.devicePixelRatio * 2 : 2, // High resolution rendering
-                    animation: false, // Turn off animation so canvas is ready immediately for html2canvas
                     scales: {
-                        x: {
-                            ticks: { color: '#e2e8f0', font: { family: 'Plus Jakarta Sans', size: 11, weight: 'bold' } },
-                            grid: { display: false }
+                        x: { 
+                            stacked: true, 
+                            grid: { color: 'rgba(255,255,255,0.05)' }, 
+                            ticks: { 
+                                color: '#94a3b8',
+                                font: { size: 10, family: 'Plus Jakarta Sans' },
+                                maxRotation: 45,
+                                minRotation: 0
+                            } 
                         },
-                        y: {
-                            ticks: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 10 }, precision: 0 },
-                            grid: { color: 'rgba(255, 255, 255, 0.08)' }
+                        y: { 
+                            stacked: true, 
+                            grid: { color: 'rgba(255,255,255,0.05)' }, 
+                            ticks: { color: '#94a3b8' } 
                         }
                     },
                     plugins: {
-                        legend: {
-                            position: 'top',
-                            labels: { color: '#e2e8f0', font: { family: 'Plus Jakarta Sans', size: 11, weight: '600' }, boxWidth: 12, padding: 12 }
-                        },
-                        datalabels: {
-                            color: '#ffffff',
-                            font: { family: 'Plus Jakarta Sans', weight: 'bold', size: 10 },
-                            anchor: 'end',
-                            align: 'top',
-                            formatter: (value) => value > 0 ? `${value}` : ''
-                        }
+                        legend: { labels: { color: '#e2e8f0', font: { family: 'Plus Jakarta Sans' } } }
                     }
                 }
             });
+        }
+
+        // ==========================================
+        // EXPORT & REPORT FUNCTIONS
+        // ==========================================
+        function exportReport() {
+            if (processedData.length === 0) return;
+
+            const exportData = processedData.map(d => ({
+                "File DOM Sumber": d.sourceDomFile,
+                "No. DOM": d.noDom,
+                "Document Date (Tgl Kirim)": d.tglKirim,
+                "Site Tujuan": d.site,
+                "Material Number": d.matNum,
+                "Nama Material": d.item,
+                "Qty Kirim": d.qtyKirim,
+                "No. GR": d.noGR,
+                "Qty GR": d.qtyGR,
+                "Selisih Qty": d.selisih,
+                "Status GR": d.statusGR,
+                "Tgl GR": d.tglGR,
+                "Lead Time": d.leadTimeDays,
+                "Konfirmasi Manual": d.manuallyConfirmed ? 'Ya' : 'Tidak'
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Rekonsiliasi Delivery GR");
+
+            XLSX.writeFile(wb, `Laporan_Rekonsiliasi_Delivery_to_GR_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            showToast("Laporan Excel berhasil diunduh!");
+        }
+
+        function openJpgModal() {
+            const modal = document.getElementById('jpgModal');
+            if (!modal) return;
+
+            // Populate Report Summary
+            const totalItems = processedData.length;
+            const completedItems = processedData.filter(d => d.statusGR === 'Complete').length;
+            const pendingItems = processedData.filter(d => d.statusGR === 'Pending').length;
+            const partialItems = processedData.filter(d => d.statusGR === 'Partial').length;
+            const completedPct = totalItems > 0 ? ((completedItems / totalItems) * 100).toFixed(1) : 0;
+
+            document.getElementById('reportDateText').innerText = `Tanggal: ${new Date().toLocaleDateString('id-ID')}`;
+            document.getElementById('reportSourceDomText').innerText = `Sumber File: ${domFilesList.length} DOM Files`;
+
+            document.getElementById('repKpiTotal').innerText = totalItems;
+            document.getElementById('repKpiComplete').innerText = completedItems;
+            document.getElementById('repKpiCompletePct').innerText = `${completedPct}% Sesuai`;
+
+            document.getElementById('repKpiPendingTotal').innerText = pendingItems + partialItems;
+            document.getElementById('repKpiPendingSubtext').innerText = `${pendingItems} Pending • ${partialItems} Selisih`;
+
+            // Populate Report Breakdown Table
+            const sites = [...new Set(processedData.map(d => d.site))];
+            const reportTbody = document.getElementById('reportTableBody');
+            
+            reportTbody.innerHTML = sites.map(s => {
+                const siteItems = processedData.filter(d => d.site === s);
+                const total = siteItems.length;
+                const complete = siteItems.filter(d => d.statusGR === 'Complete').length;
+                const partial = siteItems.filter(d => d.statusGR === 'Partial').length;
+                const pending = siteItems.filter(d => d.statusGR === 'Pending').length;
+                const pct = total > 0 ? ((complete / total) * 100).toFixed(1) : 0;
+
+                return `
+                    <tr class="hover:bg-slate-800/40">
+                        <td class="p-2.5 pl-4 font-bold text-white font-sans">${s}</td>
+                        <td class="p-2.5 text-center font-bold text-slate-200">${total}</td>
+                        <td class="p-2.5 text-center font-bold text-emerald-400">${complete}</td>
+                        <td class="p-2.5 text-center font-bold text-rose-400">${partial}</td>
+                        <td class="p-2.5 text-center font-bold text-amber-400">${pending}</td>
+                        <td class="p-2.5 text-center font-bold text-emerald-300 pr-4">${pct}%</td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Extra Report Info Text below capture area
+            document.getElementById('infoTotalDomItem').innerText = `${totalItems} item (100.00%)`;
+            document.getElementById('infoGrItem').innerText = `${completedItems} item (${completedPct}%)`;
+            document.getElementById('infoPendingPartialItem').innerText = `${pendingItems + partialItems} item (${(100 - completedPct).toFixed(1)}%)`;
+
+            modal.classList.remove('hidden');
+            renderReportChart();
         }
 
         function closeJpgModal() {
             document.getElementById('jpgModal').classList.add('hidden');
         }
 
-        function downloadReportJpg() {
-            const captureArea = document.getElementById('reportCaptureArea');
-            showToast("Sedang memproses gambar JPG HD...");
+        function renderReportChart() {
+            const ctx = document.getElementById('reportChartPlantCanvas');
+            if (!ctx) return;
 
-            // Berikan jeda waktu agar Chart.js selesai me-render objek canvas secara sempurna
-            setTimeout(() => {
-                html2canvas(captureArea, {
-                    scale: 2, // Gunakan skala 2x agar hasil tajam dan kompatibel di semua browser
-                    backgroundColor: '#0b1329',
-                    logging: false,
-                    useCORS: true
-                }).then(canvas => {
-                    try {
-                        // Menggunakan metode Canvas Blob untuk keandalan ekspor di berbagai browser
-                        canvas.toBlob((blob) => {
-                            if (!blob) {
-                                showToast("Gagal membuat file gambar.");
-                                return;
-                            }
-                            const url = URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.download = `Report_Monitoring_Delivery_GR_${new Date().toISOString().slice(0,10)}.jpg`;
-                            link.href = url;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            URL.revokeObjectURL(url);
-                            showToast("File JPG Laporan HD berhasil diunduh!");
-                            closeJpgModal();
-                        }, 'image/jpeg', 0.95);
-                    } catch (err) {
-                        // Fallback ke toDataURL jika toBlob tidak didukung
-                        const image = canvas.toDataURL("image/jpeg", 0.95);
-                        const link = document.createElement('a');
-                        link.download = `Report_Monitoring_Delivery_GR_${new Date().toISOString().slice(0,10)}.jpg`;
-                        link.href = image;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        showToast("File JPG Laporan HD berhasil diunduh!");
-                        closeJpgModal();
+            const setKeys = new Set();
+            processedData.forEach(d => setKeys.add(`${d.tglKirim} - ${d.site}`));
+            const groupKeys = Array.from(setKeys).sort();
+
+            const completeData = groupKeys.map(key => {
+                return processedData.filter(d => `${d.tglKirim} - ${d.site}` === key && d.statusGR === 'Complete').length;
+            });
+
+            const partialData = groupKeys.map(key => {
+                return processedData.filter(d => `${d.tglKirim} - ${d.site}` === key && d.statusGR === 'Partial').length;
+            });
+
+            const pendingData = groupKeys.map(key => {
+                return processedData.filter(d => `${d.tglKirim} - ${d.site}` === key && d.statusGR === 'Pending').length;
+            });
+
+            const datasets = [
+                {
+                    label: 'Ter-GR (Sesuai)',
+                    data: completeData,
+                    backgroundColor: '#10b981',
+                    borderRadius: 2
+                },
+                {
+                    label: 'Selisih GR',
+                    data: partialData,
+                    backgroundColor: '#f43f5e',
+                    borderRadius: 2
+                },
+                {
+                    label: 'Pending GR',
+                    data: pendingData,
+                    backgroundColor: '#f59e0b',
+                    borderRadius: 2
+                }
+            ];
+
+            if (reportChartPlantInstance) {
+                reportChartPlantInstance.destroy();
+            }
+
+            reportChartPlantInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: groupKeys,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#e2e8f0', font: { size: 9 } } } },
+                    scales: {
+                        x: { 
+                            stacked: true, 
+                            ticks: { color: '#94a3b8', font: { size: 9 }, maxRotation: 45 } 
+                        },
+                        y: { stacked: true, ticks: { color: '#94a3b8', font: { size: 9 } } }
                     }
-                }).catch(err => {
-                    console.error("html2canvas error:", err);
-                    showToast("Gagal memproses gambar JPG.");
-                });
-            }, 300);
+                }
+            });
+        }
+
+        function downloadReportJpg() {
+            const element = document.getElementById('reportCaptureArea');
+            if (!element) return;
+
+            showToast("Membuat gambar laporan JPG...");
+
+            html2canvas(element, {
+                backgroundColor: '#0b1329',
+                scale: 2
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `Laporan_Executive_Monitoring_Delivery_GR_${new Date().toISOString().slice(0, 10)}.jpg`;
+                link.href = canvas.toDataURL('image/jpeg', 0.95);
+                link.click();
+                showToast("Gambar Laporan berhasil diunduh!");
+            }).catch(err => {
+                console.error("Gagal generate gambar:", err);
+                showToast("Gagal mengunduh gambar laporan.");
+            });
+        }
+
+        function loadFromCloud() {
+            if (window.latestCloudData && window.latestCloudData.length > 0) {
+                const cloudItems = window.latestCloudData[0].items || [];
+                if (cloudItems.length > 0) {
+                    processedData = cloudItems;
+                    document.getElementById('uploadView').classList.add('hidden');
+                    document.getElementById('dashboardView').classList.remove('hidden');
+                    populateSourceFileDropdown();
+                    renderDashboard();
+                    showToast("Data terbaru berhasil dimuat dari Database Cloud!");
+                    return;
+                }
+            }
+            showToast("Belum ada data tersimpan di Cloud Database.");
         }
     </script>
+
+    <!-- Toast Notification Container -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 hidden transition-all">
+        <div class="glass-panel border border-emerald-500/40 bg-slate-900/90 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold">
+            <i data-lucide="info" class="w-4 h-4 text-emerald-400"></i>
+            <span id="toastMsg">Notifikasi</span>
+        </div>
+    </div>
 </body>
 </html>
