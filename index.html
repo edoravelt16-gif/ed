@@ -1922,6 +1922,15 @@
             document.getElementById('infoTotalDomItem').innerText = `${total} item (100.00%)`;
             document.getElementById('infoGrItem').innerText = `${complete} item (${completePct}%)`;
             document.getElementById('infoPendingPartialItem').innerText = `${pendingTotal} item (${(100 - parseFloat(completePct)).toFixed(2)}%)`;
+
+            // Tanggal otomatis up-to-date saat report dibuat / dibuka (Real-time Date)
+            const today = new Date();
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const formattedCurrentDate = today.toLocaleDateString('id-ID', dateOptions);
+            const infoCutoffDateElem = document.getElementById('infoCutoffDate');
+            if (infoCutoffDateElem) {
+                infoCutoffDateElem.innerText = formattedCurrentDate;
+            }
         }
 
         function closeJpgModal() {
