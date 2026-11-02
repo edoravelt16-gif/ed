@@ -161,6 +161,16 @@
 </head>
 <body class="bg-[#090d16] text-slate-100 min-h-screen flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
 
+    <!-- Toast Notification Popup Element -->
+    <div id="toast" class="fixed top-5 right-5 z-50 hidden transition-all duration-300">
+        <div class="glass-panel px-4 py-3 rounded-xl border border-emerald-500/40 bg-slate-900/95 text-slate-100 text-xs font-semibold shadow-2xl flex items-center gap-2.5">
+            <div class="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+                <i data-lucide="info" class="w-4 h-4"></i>
+            </div>
+            <span id="toastMsg">Notifikasi</span>
+        </div>
+    </div>
+
     <!-- Top Navigation Header -->
     <header class="border-b border-slate-800 bg-[#0c1427]/80 sticky top-0 z-40 backdrop-blur-md">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -554,6 +564,7 @@
                         <thead class="bg-slate-900/90 text-slate-400 uppercase font-semibold border-b border-slate-800">
                             <tr>
                                 <th class="p-3.5 text-center w-12 bg-slate-900/90 sticky left-0 z-10">Konfirmasi</th>
+                                <th class="p-3.5 min-w-[160px]">Keterangan Masalah</th>
                                 <th class="p-3.5 pl-3">Nama File DOM</th>
                                 <th class="p-3.5">No. DOM</th>
                                 <th class="p-3.5">Document Date (Tgl Kirim)</th>
@@ -735,6 +746,21 @@
 
     <!-- Application Script Engine -->
     <script>
+        // Global showToast helper defined at top scope
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            if (!toast || !toastMsg) return;
+
+            toastMsg.innerText = msg;
+            toast.classList.remove('hidden');
+            toast.classList.add('opacity-100');
+
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 4000);
+        }
+
         // Array to hold multiple file objects: [{ filename: string, data: Array }]
         let domFilesList = [];
         let fbDomFilesList = [];
@@ -1208,15 +1234,74 @@
             return val.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
         }
 
+        // Helper untuk mencari baris tabel data aktual & mengabaikan baris header/judul di atasnya
+        function findTableDataRows(rawJsonArray, keyKeywords) {
+            if (!rawJsonArray || rawJsonArray.length === 0) return [];
+
+            // 1. Cek apakah baris pertama sudah langsung berisi data/header yang sesuai
+            const firstRow = rawJsonArray[0];
+            const firstRowKeys = Object.keys(firstRow).map(k => k.toLowerCase().replace(/[^a-z0-9]/g, ''));
+            const matchesFirst = keyKeywords.some(kw => firstRowKeys.some(k => k.includes(kw)));
+
+            if (matchesFirst) {
+                return rawJsonArray;
+            }
+
+            // 2. Jika baris pertama adalah judul/metadata header, cari baris header tabel yang sebenarnya
+            let headerRowIndex = -1;
+            for (let i = 0; i < rawJsonArray.length; i++) {
+                const rowValues = Object.values(rawJsonArray[i]).map(v => v ? v.toString().toLowerCase().replace(/[^a-z0-9]/g, '') : '');
+                const matchCount = keyKeywords.filter(kw => rowValues.some(val => val.includes(kw))).length;
+                
+                // Jika i-baris memiliki minimal 2 kata kunci kolom utama
+                if (matchCount >= 2) {
+                    headerRowIndex = i;
+                    break;
+                }
+            }
+
+            if (headerRowIndex === -1) return rawJsonArray; // fallback
+
+            // Re-map data dari baris header yang ditemukan
+            const headerRowObj = rawJsonArray[headerRowIndex];
+            const columnMapping = {};
+            Object.keys(headerRowObj).forEach(colKey => {
+                const colVal = headerRowObj[colKey];
+                if (colVal !== undefined && colVal !== null && colVal !== '') {
+                    columnMapping[colKey] = colVal.toString().trim();
+                }
+            });
+
+            const cleanRows = [];
+            for (let i = headerRowIndex + 1; i < rawJsonArray.length; i++) {
+                const rawRow = rawJsonArray[i];
+                const cleanRow = {};
+                let hasData = false;
+                Object.keys(columnMapping).forEach(colKey => {
+                    const mappedHeaderName = columnMapping[colKey];
+                    const val = rawRow[colKey];
+                    cleanRow[mappedHeaderName] = val;
+                    if (val !== undefined && val !== null && val !== '') hasData = true;
+                });
+                if (hasData) cleanRows.push(cleanRow);
+            }
+
+            return cleanRows;
+        }
+
         function processData() {
             if (domFilesList.length === 0) return;
+
+            const domKeyKeywords = ['inbound', 'dom', 'material', 'qty', 'plant', 'site', 'document'];
+            const fbKeyKeywords = ['inbound', 'dom', 'gr', 'qty', 'material', 'posting'];
 
             // Combine all FB DOM items into map
             const fbMap = {};
             const fbList = [];
 
             fbDomFilesList.forEach(fbFileObj => {
-                fbFileObj.data.forEach(item => {
+                const targetData = findTableDataRows(fbFileObj.data, fbKeyKeywords);
+                targetData.forEach(item => {
                     const inboundNum = getPropValue(item, [
                         'Inbound Num.', 'Inbound Num', 'InboundNum', 'NoDOM', 'No DOM', 'DOM', 
                         'No. DOM', 'Delivery Order', 'Nomor DOM', 'DOM Number'
@@ -1240,8 +1325,9 @@
 
             domFilesList.forEach(domFileObj => {
                 const fileName = domFileObj.filename;
+                const targetData = findTableDataRows(domFileObj.data, domKeyKeywords);
                 
-                domFileObj.data.forEach(dom => {
+                targetData.forEach(dom => {
                     const rawInboundNum = getPropValue(dom, [
                         'Inbound Num.', 'Inbound Num', 'InboundNum', 'NoDOM', 'No DOM', 'DOM', 
                         'No. DOM', 'Delivery Order', 'Nomor DOM', 'DOM Number'
@@ -1356,6 +1442,7 @@
                             tglGR,
                             leadTimeDays,
                             manuallyConfirmed: false,
+                            problemReason: '',
                             originalStatusGR: statusGR,
                             originalNoGR: noGR,
                             originalQtyGR: qtyGR,
@@ -1524,27 +1611,12 @@
             });
             renderTable();
         }
-
-        function toggleManualConfirmation(id, checked) {
+        function updateProblemReason(id, value) {
             const item = processedData.find(d => d.id === id);
-            if (!item) return;
-
-            item.manuallyConfirmed = checked;
-            if (checked) {
-                item.statusGR = 'Complete';
-                item.selisih = 0;
-                item.qtyGR = item.qtyKirim;
-                if (item.noGR === '-') item.noGR = 'MANUAL CONFIRMED';
-            } else {
-                item.statusGR = item.originalStatusGR;
-                item.selisih = item.originalSelisih;
-                item.qtyGR = item.originalQtyGR;
-                item.noGR = item.originalNoGR;
+            if (item) {
+                item.problemReason = value;
+                showToast(`Keterangan item ${item.noDom} diperbarui: ${value || 'Dikosongkan'}`);
             }
-
-            renderKPICards();
-            renderTable();
-            renderPlantChart();
         }
 
         function renderTable() {
@@ -1556,7 +1628,7 @@
             if (filtered.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="13" class="text-center py-8 text-slate-500 font-medium">
+                        <td colspan="14" class="text-center py-8 text-slate-500 font-medium">
                             <div class="flex flex-col items-center justify-center gap-2">
                                 <i data-lucide="inbox" class="w-8 h-8 text-slate-600"></i>
                                 <p>Tidak ada data pengiriman yang cocok dengan filter.</p>
@@ -1575,12 +1647,27 @@
                 else if (d.statusGR === 'Pending') badgeClass = "bg-amber-500/10 text-amber-400 border-amber-500/30";
 
                 const isDelayed = parseInt(d.leadTimeDays) > 3;
+                const isProblematic = d.statusGR === 'Pending' || d.statusGR === 'Partial';
+
+                // Dropdown Keterangan Masalah khusus untuk Pending & Partial GR
+                let dropdownHtml = `<span class="text-slate-600 text-[11px]">-</span>`;
+                if (isProblematic) {
+                    dropdownHtml = `
+                        <select onchange="updateProblemReason('${d.id}', this.value)" class="w-full bg-slate-900 border border-slate-700 hover:border-amber-500/50 rounded-lg px-2 py-1 text-[11px] text-amber-300 focus:outline-none focus:border-amber-500">
+                            <option value="" ${!d.problemReason ? 'selected' : ''}>-- Pilih Keterangan --</option>
+                            <option value="Barang masih didepo" ${d.problemReason === 'Barang masih didepo' ? 'selected' : ''}>1. Barang masih didepo</option>
+                            <option value="Barang direturn" ${d.problemReason === 'Barang direturn' ? 'selected' : ''}>2. Barang direturn</option>
+                            <option value="Barang sudah terkirim" ${d.problemReason === 'Barang sudah terkirim' ? 'selected' : ''}>3. Barang sudah terkirim</option>
+                        </select>
+                    `;
+                }
 
                 return `
                     <tr class="hover:bg-slate-900/60 transition-colors">
                         <td class="p-3.5 text-center sticky left-0 bg-slate-950/90 border-r border-slate-800">
                             <input type="checkbox" onchange="toggleManualConfirmation('${d.id}', this.checked)" ${d.manuallyConfirmed ? 'checked' : ''} class="w-4 h-4 accent-emerald-500 rounded cursor-pointer" title="Konfirmasi Manual GR">
                         </td>
+                        <td class="p-2.5 min-w-[160px]">${dropdownHtml}</td>
                         <td class="p-3.5 pl-3 font-mono text-[11px] text-slate-400 truncate max-w-[150px]" title="${d.sourceDomFile}">${d.sourceDomFile}</td>
                         <td class="p-3.5 font-mono text-slate-200 font-bold">${d.noDom}</td>
                         <td class="p-3.5 font-mono text-slate-300">${d.tglKirim}</td>
@@ -1607,183 +1694,234 @@
         // ==========================================
         // CHART RENDERING (DASHBOARD & REPORT)
         // ==========================================
-        const plantColorsMap = {};
+        const plantColorsMap = {
+            'PL01': '#3b82f6', // Bright Blue
+            'PL02': '#10b981', // Emerald Green
+            'PL07': '#06b6d4', // Cyan
+            'PL08': '#8b5cf6', // Purple
+            'PL28': '#6366f1', // Indigo
+            'PL26': '#14b8a6', // Teal
+            'PL25': '#0284c7', // Sky Blue
+            'PL17': '#a855f7', // Violet
+            'PL29': '#84cc16'  // Lime Green
+        };
         const plantPalette = [
-            '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899', 
-            '#06b6d4', '#f97316', '#84cc16', '#14b8a6', '#6366f1'
+            '#3b82f6', '#10b981', '#06b6d4', '#8b5cf6', 
+            '#6366f1', '#14b8a6', '#0284c7', '#a855f7', '#84cc16',
+            '#0d9488', '#4f46e5'
         ];
 
         function getPlantColor(site, idx) {
-            if (!plantColorsMap[site]) {
-                plantColorsMap[site] = plantPalette[Object.keys(plantColorsMap).length % plantPalette.length];
-            }
-            return plantColorsMap[site];
+            const cleanSite = (site || '').trim().toUpperCase();
+            if (plantColorsMap[cleanSite]) return plantColorsMap[cleanSite];
+            return plantPalette[idx % plantPalette.length];
         }
 
         function renderPlantChart() {
-            const ctx = document.getElementById('chartPlant')?.getContext('2d');
-            if (!ctx) return;
+            const canvas = document.getElementById('chartPlant');
+            if (!canvas) return;
 
             const mode = document.getElementById('chartGroupMode')?.value || 'date_plant';
-            const groups = {};
+            const ctx = canvas.getContext('2d');
 
-            processedData.forEach(d => {
-                let key = '';
-                if (mode === 'date_plant') key = `${d.tglKirim} - ${d.site}`;
-                else if (mode === 'plant_only') key = d.site;
-                else if (mode === 'date_only') key = d.tglKirim;
+            if (chartPlantInstance) {
+                chartPlantInstance.destroy();
+            }
 
-                if (!groups[key]) {
-                    groups[key] = { complete: 0, partial: 0, pending: 0, site: d.site };
-                }
+            if (processedData.length === 0) return;
 
-                if (d.statusGR === 'Complete') groups[key].complete++;
-                else if (d.statusGR === 'Partial') groups[key].partial++;
-                else if (d.statusGR === 'Pending') groups[key].pending++;
-            });
+            const siteList = [...new Set(processedData.map(d => d.site))].sort();
 
-            const labels = Object.keys(groups);
-            const dataComplete = labels.map(k => groups[k].complete);
-            const dataPartial = labels.map(k => groups[k].partial);
-            const dataPending = labels.map(k => groups[k].pending);
+            if (mode === 'date_plant') {
+                const dates = [...new Set(processedData.map(d => d.tglKirim))].sort();
+                
+                const datasets = siteList.map((site, idx) => {
+                    const color = getPlantColor(site, idx);
+                    const dataPoints = dates.map(dStr => {
+                        return processedData.filter(d => d.tglKirim === dStr && d.site === site).length;
+                    });
+                    return {
+                        label: site,
+                        data: dataPoints,
+                        backgroundColor: color,
+                        borderColor: color,
+                        borderWidth: 1,
+                        borderRadius: 4
+                    };
+                });
 
-            if (chartPlantInstance) chartPlantInstance.destroy();
-
-            chartPlantInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Ter-GR (Sesuai)',
-                            data: dataComplete,
-                            backgroundColor: '#10b981',
-                            borderRadius: 6
+                chartPlantInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: { labels: dates, datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+                            tooltip: { mode: 'index', intersect: false }
                         },
-                        {
-                            label: 'Selisih GR (Tidak Sesuai)',
-                            data: dataPartial,
-                            backgroundColor: '#f43f5e',
-                            borderRadius: 6
-                        },
-                        {
-                            label: 'Pending GR',
-                            data: dataPending,
-                            backgroundColor: '#f59e0b',
-                            borderRadius: 6
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: {
-                            stacked: true,
-                            grid: { color: 'rgba(255,255,255,0.05)' },
-                            ticks: { color: '#94a3b8', font: { size: 10 } }
-                        },
-                        y: {
-                            stacked: true,
-                            grid: { color: 'rgba(255,255,255,0.05)' },
-                            ticks: { color: '#94a3b8', font: { size: 10 } }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            labels: { color: '#cbd5e1', font: { size: 11 } }
+                        scales: {
+                            x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+                            y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' }, beginAtZero: true }
                         }
                     }
-                }
-            });
+                });
+            } else if (mode === 'plant_only') {
+                const completedCounts = siteList.map(s => processedData.filter(d => d.site === s && d.statusGR === 'Complete').length);
+                const partialCounts = siteList.map(s => processedData.filter(d => d.site === s && d.statusGR === 'Partial').length);
+                const pendingCounts = siteList.map(s => processedData.filter(d => d.site === s && d.statusGR === 'Pending').length);
+
+                chartPlantInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: siteList,
+                        datasets: [
+                            { label: 'Ter-GR (Sesuai)', data: completedCounts, backgroundColor: '#10b981' },
+                            { label: 'Selisih Qty', data: partialCounts, backgroundColor: '#f43f5e' },
+                            { label: 'Pending GR', data: pendingCounts, backgroundColor: '#f59e0b' }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: '#94a3b8' } } },
+                        scales: {
+                            x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+                            y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' }, beginAtZero: true }
+                        }
+                    }
+                });
+            } else {
+                const dates = [...new Set(processedData.map(d => d.tglKirim))].sort();
+                const dateCounts = dates.map(dt => processedData.filter(d => d.tglKirim === dt).length);
+
+                chartPlantInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [{
+                            label: 'Total Items Kirim',
+                            data: dateCounts,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                            fill: true,
+                            tension: 0.3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: '#94a3b8' } } },
+                        scales: {
+                            x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+                            y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' }, beginAtZero: true }
+                        }
+                    }
+                });
+            }
         }
 
         // ==========================================
-        // REPORT MODAL & EXPORT JPG / EXCEL
+        // REPORT MODAL & EXPORT ENGINE
         // ==========================================
         function openJpgModal() {
             if (processedData.length === 0) {
-                showToast("Tidak ada data untuk dibuatkan laporan!");
+                showToast("Proses data terlebih dahulu sebelum membuka modal report!");
                 return;
             }
 
             const modal = document.getElementById('jpgModal');
-            if (modal) modal.classList.remove('hidden');
-
-            const now = new Date();
-            const dateStr = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-            const infoCutoffDate = document.getElementById('infoCutoffDate');
-            if (infoCutoffDate) infoCutoffDate.innerText = dateStr;
-
-            const reportDateText = document.getElementById('reportDateText');
-            if (reportDateText) reportDateText.innerText = `Tanggal: ${now.toLocaleDateString('id-ID')}`;
-
-            const reportSourceDomText = document.getElementById('reportSourceDomText');
-            if (reportSourceDomText) reportSourceDomText.innerText = `Sumber File: ${domFilesList.length} DOM Files`;
+            if (!modal) return;
+            modal.classList.remove('hidden');
 
             const total = processedData.length;
             const complete = processedData.filter(d => d.statusGR === 'Complete').length;
             const partial = processedData.filter(d => d.statusGR === 'Partial').length;
             const pending = processedData.filter(d => d.statusGR === 'Pending').length;
+
+            const completePct = total > 0 ? ((complete / total) * 100).toFixed(2) : '0.00';
             const pendingTotal = partial + pending;
 
-            const repKpiTotal = document.getElementById('repKpiTotal');
-            if (repKpiTotal) repKpiTotal.innerText = total;
+            document.getElementById('repKpiTotal').innerText = total;
+            document.getElementById('repKpiComplete').innerText = complete;
+            document.getElementById('repKpiCompletePct').innerText = `${completePct}% Sesuai`;
+            document.getElementById('repKpiPendingTotal').innerText = pendingTotal;
+            document.getElementById('repKpiPendingSubtext').innerText = `${pending} Pending • ${partial} Selisih`;
 
-            const repKpiComplete = document.getElementById('repKpiComplete');
-            if (repKpiComplete) repKpiComplete.innerText = complete;
+            const dates = [...new Set(processedData.map(d => d.tglKirim))];
+            document.getElementById('reportDateText').innerText = `Tanggal: ${dates.length > 0 ? dates[0] : '-'}`;
+            document.getElementById('reportSourceDomText').innerText = `Sumber File: ${domFilesList.length} File DOM`;
 
-            const repKpiCompletePct = document.getElementById('repKpiCompletePct');
-            if (repKpiCompletePct) repKpiCompletePct.innerText = `${total > 0 ? ((complete / total) * 100).toFixed(1) : 0}% Sesuai`;
+            // Render Report Table
+            const sites = [...new Set(processedData.map(d => d.site))].sort();
+            const repTableBody = document.getElementById('reportTableBody');
+            if (repTableBody) {
+                repTableBody.innerHTML = sites.map((site, idx) => {
+                    const siteItems = processedData.filter(d => d.site === site);
+                    const siteTotal = siteItems.length;
+                    const siteComplete = siteItems.filter(d => d.statusGR === 'Complete').length;
+                    const sitePartial = siteItems.filter(d => d.statusGR === 'Partial').length;
+                    const sitePending = siteItems.filter(d => d.statusGR === 'Pending').length;
+                    const fulfillmentPct = siteTotal > 0 ? ((siteComplete / siteTotal) * 100).toFixed(2) : '0.00';
+                    const color = getPlantColor(site, idx);
 
-            const repKpiPendingTotal = document.getElementById('repKpiPendingTotal');
-            if (repKpiPendingTotal) repKpiPendingTotal.innerText = pendingTotal;
-
-            const repKpiPendingSubtext = document.getElementById('repKpiPendingSubtext');
-            if (repKpiPendingSubtext) repKpiPendingSubtext.innerText = `${pending} Pending • ${partial} Selisih`;
-
-            // Update Info Area Text
-            const infoTotalDomItem = document.getElementById('infoTotalDomItem');
-            if (infoTotalDomItem) infoTotalDomItem.innerText = `${total} item (100.00%)`;
-
-            const infoGrItem = document.getElementById('infoGrItem');
-            if (infoGrItem) infoGrItem.innerText = `${complete} item (${total > 0 ? ((complete/total)*100).toFixed(2) : 0}%)`;
-
-            const infoPendingPartialItem = document.getElementById('infoPendingPartialItem');
-            if (infoPendingPartialItem) infoPendingPartialItem.innerText = `${pendingTotal} item (${total > 0 ? ((pendingTotal/total)*100).toFixed(2) : 0}%)`;
-
-            // Render Site Breakdown Table in Modal
-            const siteMap = {};
-            processedData.forEach(d => {
-                if (!siteMap[d.site]) siteMap[d.site] = { total: 0, complete: 0, partial: 0, pending: 0 };
-                siteMap[d.site].total++;
-                if (d.statusGR === 'Complete') siteMap[d.site].complete++;
-                else if (d.statusGR === 'Partial') siteMap[d.site].partial++;
-                else if (d.statusGR === 'Pending') siteMap[d.site].pending++;
-            });
-
-            const reportTableBody = document.getElementById('reportTableBody');
-            if (reportTableBody) {
-                reportTableBody.innerHTML = Object.keys(siteMap).map(site => {
-                    const s = siteMap[site];
-                    const pct = s.total > 0 ? ((s.complete / s.total) * 100).toFixed(1) : 0;
                     return `
                         <tr>
-                            <td class="p-2.5 pl-4 font-bold text-white">${site}</td>
-                            <td class="p-2.5 text-center font-bold text-slate-200">${s.total}</td>
-                            <td class="p-2.5 text-center font-bold text-emerald-400">${s.complete}</td>
-                            <td class="p-2.5 text-center font-bold text-rose-400">${s.partial}</td>
-                            <td class="p-2.5 text-center font-bold text-amber-400">${s.pending}</td>
-                            <td class="p-2.5 text-center pr-4 font-bold ${pct == 100 ? 'text-emerald-400' : 'text-amber-400'}">${pct}%</td>
+                            <td class="p-2.5 pl-4 font-bold flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full inline-block" style="background-color: ${color}"></span>
+                                <span>${site}</span>
+                            </td>
+                            <td class="p-2.5 text-center font-bold text-white">${siteTotal}</td>
+                            <td class="p-2.5 text-center text-emerald-400 font-bold">${siteComplete}</td>
+                            <td class="p-2.5 text-center text-rose-400 font-bold">${sitePartial}</td>
+                            <td class="p-2.5 text-center text-amber-400 font-bold">${sitePending}</td>
+                            <td class="p-2.5 text-center pr-4 font-bold text-emerald-400">${fulfillmentPct}%</td>
                         </tr>
                     `;
                 }).join('');
             }
 
-            // Render Report Canvas Chart
-            renderReportChart(siteMap);
-            lucide.createIcons();
+            // Render Chart on Modal
+            const repCanvas = document.getElementById('reportChartPlantCanvas');
+            if (repCanvas) {
+                const ctxRep = repCanvas.getContext('2d');
+                if (reportChartPlantInstance) reportChartPlantInstance.destroy();
+
+                const repDates = [...new Set(processedData.map(d => d.tglKirim))].sort();
+                const datasets = sites.map((site, idx) => {
+                    const color = getPlantColor(site, idx);
+                    const dataPoints = repDates.map(dStr => {
+                        return processedData.filter(d => d.tglKirim === dStr && d.site === site).length;
+                    });
+                    return {
+                        label: site,
+                        data: dataPoints,
+                        backgroundColor: color,
+                        borderColor: color,
+                        borderWidth: 1,
+                        borderRadius: 3
+                    };
+                });
+
+                reportChartPlantInstance = new Chart(ctxRep, {
+                    type: 'bar',
+                    data: { labels: repDates, datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 10 } } } },
+                        scales: {
+                            x: { ticks: { color: '#cbd5e1', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                            y: { ticks: { color: '#cbd5e1', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true }
+                        }
+                    }
+                });
+            }
+
+            // Extra Info Section
+            document.getElementById('infoTotalDomItem').innerText = `${total} item (100.00%)`;
+            document.getElementById('infoGrItem').innerText = `${complete} item (${completePct}%)`;
+            document.getElementById('infoPendingPartialItem').innerText = `${pendingTotal} item (${(100 - parseFloat(completePct)).toFixed(2)}%)`;
         }
 
         function closeJpgModal() {
@@ -1791,279 +1929,70 @@
             if (modal) modal.classList.add('hidden');
         }
 
-        function renderReportChart(siteMap) {
-            const ctx = document.getElementById('reportChartPlantCanvas')?.getContext('2d');
-            if (!ctx) return;
-
-            const sites = Object.keys(siteMap);
-            const dataComplete = sites.map(s => siteMap[s].complete);
-            const dataPartial = sites.map(s => siteMap[s].partial);
-            const dataPending = sites.map(s => siteMap[s].pending);
-
-            if (reportChartPlantInstance) reportChartPlantInstance.destroy();
-
-            reportChartPlantInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: sites,
-                    datasets: [
-                        { label: 'Ter-GR', data: dataComplete, backgroundColor: '#10b981' },
-                        { label: 'Selisih', data: dataPartial, backgroundColor: '#f43f5e' },
-                        { label: 'Pending', data: dataPending, backgroundColor: '#f59e0b' }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: { stacked: true, ticks: { color: '#94a3b8', font: { size: 9 } } },
-                        y: { stacked: true, ticks: { color: '#94a3b8', font: { size: 9 } } }
-                    },
-                    plugins: {
-                        legend: { labels: { color: '#cbd5e1', font: { size: 9 } } }
-                    }
-                }
-            });
-        }
-
         async function downloadReportJpg() {
-            const captureElement = document.getElementById('reportCaptureArea');
-            if (!captureElement) return;
+            const captureArea = document.getElementById('reportCaptureArea');
+            if (!captureArea) return;
 
-            showToast("Memproses gambar laporan...");
             try {
-                const canvas = await html2canvas(captureElement, { backgroundColor: '#0b1329', scale: 2 });
-                const image = canvas.toDataURL('image/jpeg', 0.95);
-                const a = document.createElement('a');
-                a.href = image;
-                a.download = `Laporan_Monitoring_Delivery_GR_${new Date().toISOString().slice(0, 10)}.jpg`;
-                a.click();
-                showToast("Laporan gambar JPG berhasil diunduh!");
+                showToast("Mengekspor laporan visual ke gambar JPG...");
+                const canvas = await html2canvas(captureArea, { backgroundColor: '#0b1329', scale: 2 });
+                const link = document.createElement('a');
+                link.download = `Laporan_Executive_Summary_Delivery_GR_${new Date().toISOString().slice(0, 10)}.jpg`;
+                link.href = canvas.toDataURL('image/jpeg', 0.95);
+                link.click();
+                showToast("Laporan JPG berhasil diunduh!");
             } catch (err) {
-                console.error("Gagal mengunduh gambar JPG:", err);
-                showToast("Gagal memproses gambar JPG.");
+                console.error("Error html2canvas:", err);
+                showToast("Gagal mengunduh gambar JPG.");
             }
         }
 
-        // Helper function for building formatted multi-sheet Excel
         function createMultiSheetExcelWorkbook() {
+            const wb = XLSX.utils.book_new();
+
             const total = processedData.length;
             const complete = processedData.filter(d => d.statusGR === 'Complete').length;
             const partial = processedData.filter(d => d.statusGR === 'Partial').length;
             const pending = processedData.filter(d => d.statusGR === 'Pending').length;
-            const pendingTotal = partial + pending;
-            const fulfillmentPct = total > 0 ? (complete / total) : 0;
-            const totalDiscrepancyQty = processedData.filter(d => d.statusGR === 'Partial').reduce((acc, d) => acc + Math.abs(d.selisih), 0);
+            const completePct = total > 0 ? (complete / total) : 0;
 
-            // Group site breakdown data
-            const siteMap = {};
-            processedData.forEach(d => {
-                if (!siteMap[d.site]) siteMap[d.site] = { total: 0, complete: 0, partial: 0, pending: 0 };
-                siteMap[d.site].total++;
-                if (d.statusGR === 'Complete') siteMap[d.site].complete++;
-                else if (d.statusGR === 'Partial') siteMap[d.site].partial++;
-                else if (d.statusGR === 'Pending') siteMap[d.site].pending++;
-            });
-
-            const siteList = Object.keys(siteMap);
-            const dateNowStr = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-            // Generate HTML table for Sheet 1 (Executive Summary) styled exactly as requested
-            let summaryHtml = `
-            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-            <head>
-                <meta charset="UTF-8">
-                <!--[if gte mso 9]>
-                <xml>
-                    <x:ExcelWorkbook>
-                        <x:ExcelWorksheets>
-                            <x:ExcelWorksheet>
-                                <x:Name>Executive Summary</x:Name>
-                                <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-                            </x:ExcelWorksheet>
-                        </x:ExcelWorksheets>
-                    </x:ExcelWorkbook>
-                </xml>
-                <![endif]-->
-                <style>
-                    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; background-color: #ffffff; margin:0; padding:15px; }
-                    .meta-tbl { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-                    .meta-label { font-weight: 700; color: #1e293b; width: 180px; padding: 4px 0; font-size: 11pt; }
-                    .meta-val { font-weight: 700; color: #0f172a; padding: 4px 0; font-size: 11pt; }
-                    
-                    .banner-title { background-color: #0b2545; color: #ffffff; font-size: 12pt; font-weight: 800; padding: 8px 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-                    
-                    .kpi-card { border: 1px solid #cbd5e1; padding: 10px; text-align: center; }
-                    .kpi-num { font-size: 24pt; font-weight: 800; line-height: 1.1; }
-                    .kpi-label { font-size: 9.5pt; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
-                    .badge-pct { display: inline; font-weight: 800; font-size: 11pt; margin-left: 6px; }
-                    
-                    .tbl-header-bss { background-color: #0b2545; color: #ffffff; font-weight: 800; text-align: center; border: 1px solid #0b2545; padding: 9px; font-size: 11pt; }
-                    .cell-site { font-weight: 800; font-size: 11pt; color: #0f172a; padding: 8px 12px; border: 1px solid #e2e8f0; }
-                    .cell-val { font-weight: 700; font-size: 11pt; text-align: center; padding: 8px 12px; border: 1px solid #e2e8f0; font-family: Consolas, monospace; }
-                    
-                    .row-even { background-color: #ffffff; }
-                    .row-odd { background-color: #f8fafc; }
-                    .footer-tag { background-color: #0b2545; color: #ffffff; font-style: italic; font-weight: 700; padding: 8px 15px; font-size: 11pt; }
-                </style>
-            </head>
-            <body>
-                <!-- HEADER METADATA SECTION -->
-                <table class="meta-tbl">
-                    <tr>
-                        <td class="meta-label">📅 Tanggal Laporan</td>
-                        <td class="meta-val">: ${dateNowStr}</td>
-                        <td colspan="4"></td>
-                    </tr>
-                    <tr>
-                        <td class="meta-label">👤 Authorized By</td>
-                        <td class="meta-val">: Sabil Amin</td>
-                        <td colspan="4"></td>
-                    </tr>
-                    <tr>
-                        <td class="meta-label">📑 Total File DOM Sumber</td>
-                        <td class="meta-val">: ${domFilesList.length} File</td>
-                        <td colspan="4"></td>
-                    </tr>
-                </table>
-
-                <table style="width:100%; border-collapse:collapse;">
-                    <!-- SECTION 1: RINGKASAN UTAMA STATUS DELIVERY TO GR -->
-                    <tr>
-                        <td colspan="6" class="banner-title">📊 RINGKASAN UTAMA STATUS DELIVERY TO GR</td>
-                    </tr>
-                    
-                    <tr><td colspan="6" style="height:6px;"></td></tr>
-
-                    <!-- KPI BOX CARDS ROW -->
-                    <tr>
-                        <td colspan="1" class="kpi-card" style="width:20%; background-color:#f1f5f9; border-color:#cbd5e1;">
-                            <div class="kpi-label" style="color:#475569;">METRIK INDIKATOR</div>
-                            <div class="kpi-num" style="color:#0b2545;">${total}</div>
-                            <div style="font-size:8.5pt; color:#64748b; font-style:italic; margin-top:2px;">Total Delivery Items</div>
-                        </td>
-                        <td colspan="2" class="kpi-card" style="width:30%; background-color:#f0fdf4; border:2px solid #16a34a;">
-                            <div class="kpi-label" style="color:#15803d;">JUMLAH TER-GR (Sesuai)</div>
-                            <div class="kpi-num" style="color:#16a34a;">
-                                ${complete}
-                                <span class="badge-pct" style="color:#15803d;">
-                                    ${(fulfillmentPct * 100).toFixed(2)}%
-                                </span>
-                            </div>
-                        </td>
-                        <td colspan="1" class="kpi-card" style="width:25%; background-color:#fff1f2; border-color:#fecdd3;">
-                            <div class="kpi-label" style="color:#be123c;">GR Tidak Sesuai (Selisih)</div>
-                            <div class="kpi-num" style="color:#dc2626;">
-                                ${partial}
-                                <span class="badge-pct" style="color:#dc2626;">
-                                    ${(total > 0 ? (partial / total) * 100 : 0).toFixed(2)}%
-                                </span>
-                            </div>
-                        </td>
-                        <td colspan="2" class="kpi-card" style="width:25%; background-color:#fffbe6; border-color:#fef08a;">
-                            <div class="kpi-label" style="color:#b45309;">Pending / Outstanding GR</div>
-                            <div class="kpi-num" style="color:#d97706;">
-                                ${pending}
-                                <span class="badge-pct" style="color:#d97706;">
-                                    ${(total > 0 ? (pending / total) * 100 : 0).toFixed(2)}%
-                                </span>
-                            </div>
-                        </td>
-                    </tr>
-
-                    <tr><td colspan="6" style="height:16px;"></td></tr>
-
-                    <!-- SECTION 2: TABLE REKAPITULASI PER SITE -->
-                    <tr>
-                        <td colspan="6" class="banner-title">📍 REKAPITULASI & DISTRIBUSI PER SITE / PLANT</td>
-                    </tr>
-                    
-                    <tr>
-                        <th class="tbl-header-bss" style="width:22%; text-align:left; padding-left:12px;">Site Tujuan</th>
-                        <th class="tbl-header-bss" style="width:16%;">Total Delivery</th>
-                        <th class="tbl-header-bss" style="width:18%;">Ter-GR (Sesuai)</th>
-                        <th class="tbl-header-bss" style="width:14%;">Selisih GR</th>
-                        <th class="tbl-header-bss" style="width:14%;">Pending GR</th>
-                        <th class="tbl-header-bss" style="width:16%;">% Fulfillment</th>
-                    </tr>
-            `;
-
-            siteList.forEach((site, idx) => {
-                const s = siteMap[site];
-                const pct = s.total > 0 ? (s.complete / s.total) * 100 : 0;
-                const rowClass = idx % 2 === 0 ? 'row-even' : 'row-odd';
-
-                summaryHtml += `
-                    <tr class="${rowClass}">
-                        <td class="cell-site">${site}</td>
-                        <td class="cell-val" style="color:#0f172a;">${s.total}</td>
-                        <td class="cell-val" style="color:#16a34a;">${s.complete}</td>
-                        <td class="cell-val" style="${s.partial > 0 ? 'color:#dc2626;' : 'color:#94a3b8;'}">${s.partial}</td>
-                        <td class="cell-val" style="${s.pending > 0 ? 'color:#d97706;' : 'color:#94a3b8;'}">${s.pending}</td>
-                        <td class="cell-val" style="color:#0284c7;">${pct.toFixed(2)}%</td>
-                    </tr>
-                `;
-            });
-
-            summaryHtml += `
-                    <tr><td colspan="6" style="height:12px;"></td></tr>
-                    <tr>
-                        <td colspan="6" class="footer-tag">
-                            Together for Better Logistics
-                        </td>
-                    </tr>
-                </table>
-            </body>
-            </html>
-            `;
-
-            // Standard SheetJS workbook setup as fallback multi-sheet structure
-            const summaryRows = [
-                ["Tanggal Laporan:", dateNowStr, "", "", "", ""],
-                ["Authorized By:", "Sabil Amin", "", "", "", ""],
-                ["Total File DOM Sumber:", domFilesList.length + " File", "", "", "", ""],
+            const execSummaryData = [
+                ["Tanggal Laporan", ": " + (processedData[0]?.tglKirim || '-')],
+                ["Authorized By", ": Sabil Amin"],
+                ["Total File DOM Sumber", ": " + domFilesList.length + " File"],
                 [""],
-                ["RINGKASAN UTAMA STATUS DELIVERY TO GR", "", "", "", "", ""],
-                ["METRIK INDIKATOR", "JUMLAH ITEM", "PERSENTASE", "KETERANGAN", "", ""],
-                ["Total Delivery Items", total, 1.00, "Total Keseluruhan Barang Dikeluarkan", "", ""],
-                ["Item Ter-GR (Sesuai)", complete, fulfillmentPct, "Goods Receipt Sempurna (Qty Kirim = Qty GR)", "", ""],
-                ["GR Tidak Sesuai (Selisih)", partial, (total > 0 ? (partial / total) : 0), `Qty Kuantitas Selisih: ${totalDiscrepancyQty} Pcs`, "", ""],
-                ["Pending / Outstanding GR", pending, (total > 0 ? (pending / total) : 0), "GR Belum Diproses / Belum Terbit", "", ""],
-                ["Total Unresolved (Pending & Selisih)", pendingTotal, (total > 0 ? (pendingTotal / total) : 0), "Perlu Tindak Lanjut Tim Site & Logistik", "", ""],
+                ["=== RINGKASAN UTAMA STATUS DELIVERY TO GR ==="],
+                ["METRIK INDIKATOR", "JUMLAH ITEM", "PERSENTASE", "KETERANGAN"],
+                ["Total Delivery Items", total, 1.0, "Total Keseluruhan Barang Dikeluarkan"],
+                ["Item Ter-GR (Sesuai)", complete, completePct, "Goods Receipt Sempurna (Qty Kirim = Qty GR)"],
+                ["GR Tidak Sesuai (Selisih)", partial, total > 0 ? (partial / total) : 0, "Qty Kuantitas Selisih"],
+                ["Pending / Outstanding GR", pending, total > 0 ? (pending / total) : 0, "GR Belum Diproses / Belum Terbit"],
                 [""],
-                ["REKAPITULASI & DISTRIBUSI PER SITE / PLANT", "", "", "", "", ""],
+                ["=== REKAPITULASI & DISTRIBUSI PER SITE / PLANT ==="],
                 ["Site Tujuan", "Total Delivery", "Ter-GR (Sesuai)", "Selisih GR", "Pending GR", "% Fulfillment"]
             ];
 
-            siteList.forEach(site => {
-                const s = siteMap[site];
-                const pct = s.total > 0 ? (s.complete / s.total) : 0;
-                summaryRows.push([site, s.total, s.complete, s.partial, s.pending, pct]);
+            const sites = [...new Set(processedData.map(d => d.site))].sort();
+            sites.forEach(site => {
+                const siteItems = processedData.filter(d => d.site === site);
+                const siteTotal = siteItems.length;
+                const siteComplete = siteItems.filter(d => d.statusGR === 'Complete').length;
+                const sitePartial = siteItems.filter(d => d.statusGR === 'Partial').length;
+                const sitePending = siteItems.filter(d => d.statusGR === 'Pending').length;
+                const fulPct = siteTotal > 0 ? (siteComplete / siteTotal) : 0;
+
+                execSummaryData.push([site, siteTotal, siteComplete, sitePartial, sitePending, fulPct]);
             });
 
-            const wb = XLSX.utils.book_new();
-            const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
-            
-            const pctCells = ['C7', 'C8', 'C9', 'C10', 'C11'];
-            pctCells.forEach(cell => { if (wsSummary[cell]) wsSummary[cell].z = '0.00%'; });
-
-            const startSiteRow = 15;
-            siteList.forEach((_, idx) => {
-                const cell = 'F' + (startSiteRow + idx);
-                if (wsSummary[cell]) wsSummary[cell].z = '0.00%';
-            });
-
-            wsSummary['!cols'] = [
-                { wch: 30 }, { wch: 18 }, { wch: 18 }, { wch: 45 }, { wch: 16 }, { wch: 18 }
-            ];
-
+            const wsSummary = XLSX.utils.aoa_to_sheet(execSummaryData);
             XLSX.utils.book_append_sheet(wb, wsSummary, "Executive Summary");
 
-            // Sheet 2: Detail Data Rekonsiliasi (Menggabungkan Seluruh Data Material & Kolom dari FB & DOM)
-            const detailRows = processedData.map(d => ({
-                "File DOM Sumber": d.sourceDomFile,
+            // Sheet 2: Detail Data Material & GR
+            const detailRows = processedData.map((d, i) => ({
+                "No": i + 1,
+                "Nama File DOM": d.sourceDomFile,
                 "No. DOM": d.noDom,
-                "Document Date (Tgl Kirim)": d.tglKirim,
+                "Tanggal Kirim": d.tglKirim,
                 "Site Tujuan": d.site,
                 "Material Number": d.matNum,
                 "Nama Material": d.item,
@@ -2072,20 +2001,14 @@
                 "Qty GR": d.qtyGR,
                 "Selisih Qty": d.selisih,
                 "Status GR": d.statusGR,
-                "Tgl GR": d.tglGR,
-                "Lead Time": d.leadTimeDays,
-                "Konfirmasi Manual": d.manuallyConfirmed ? "YA" : "TIDAK"
+                "Keterangan Masalah": d.problemReason || '-',
+                "Tanggal GR": d.tglGR,
+                "Lead Time": d.leadTimeDays
             }));
 
             const wsDetail = XLSX.utils.json_to_sheet(detailRows);
-            wsDetail['!cols'] = [
-                { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, 
-                { wch: 35 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, 
-                { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 18 }
-            ];
             XLSX.utils.book_append_sheet(wb, wsDetail, "Detail Data Material & GR");
 
-            wb.summaryHtml = summaryHtml;
             return wb;
         }
 
@@ -2096,254 +2019,12 @@
             }
 
             try {
-                const total = processedData.length;
-                const complete = processedData.filter(d => d.statusGR === 'Complete').length;
-                const partial = processedData.filter(d => d.statusGR === 'Partial').length;
-                const pending = processedData.filter(d => d.statusGR === 'Pending').length;
-                const fulfillmentPct = total > 0 ? (complete / total) * 100 : 0;
-                const partialPct = total > 0 ? (partial / total) * 100 : 0;
-                const pendingPct = total > 0 ? (pending / total) * 100 : 0;
-
-                // Group site breakdown data
-                const siteMap = {};
-                processedData.forEach(d => {
-                    if (!siteMap[d.site]) siteMap[d.site] = { total: 0, complete: 0, partial: 0, pending: 0 };
-                    siteMap[d.site].total++;
-                    if (d.statusGR === 'Complete') siteMap[d.site].complete++;
-                    else if (d.statusGR === 'Partial') siteMap[d.site].partial++;
-                    else if (d.statusGR === 'Pending') siteMap[d.site].pending++;
-                });
-
-                const siteList = Object.keys(siteMap);
-                const dateNowStr = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-                // Construct Visual HTML for Executive Summary (Gambar 1 style)
-                let excelTemplate = `
-                <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-                <head>
-                    <meta charset="UTF-8">
-                    <!--[if gte mso 9]>
-                    <xml>
-                        <x:ExcelWorkbook>
-                            <x:ExcelWorksheets>
-                                <x:ExcelWorksheet>
-                                    <x:Name>Executive Summary</x:Name>
-                                    <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-                                </x:ExcelWorksheet>
-                                <x:ExcelWorksheet>
-                                    <x:Name>Detail Data Material & GR</x:Name>
-                                    <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-                                </x:ExcelWorksheet>
-                            </x:ExcelWorksheets>
-                        </x:ExcelWorkbook>
-                    </xml>
-                    <![endif]-->
-                    <style>
-                        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; background-color: #ffffff; margin:0; padding:15px; }
-                        table { border-collapse: collapse; }
-                        .meta-label { font-weight: 700; color: #1e293b; padding: 4px 8px; font-size: 10.5pt; text-align: left; }
-                        .meta-val { font-weight: 700; color: #0f172a; padding: 4px 8px; font-size: 10.5pt; text-align: left; }
-                        
-                        .banner-title { background-color: #0b2545; color: #ffffff; font-size: 11.5pt; font-weight: 800; padding: 8px 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-                        
-                        .kpi-card { border: 1px solid #cbd5e1; padding: 12px; text-align: center; vertical-align: middle; }
-                        .kpi-num { font-size: 26pt; font-weight: 800; line-height: 1; }
-                        .kpi-label { font-size: 9.5pt; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
-                        .badge-pct { font-weight: 800; font-size: 12pt; margin-left: 8px; }
-                        
-                        .tbl-header-bss { background-color: #0b2545; color: #ffffff; font-weight: 800; text-align: center; border: 1px solid #0b2545; padding: 9px; font-size: 10.5pt; }
-                        .cell-site { font-weight: 800; font-size: 11pt; color: #0f172a; padding: 8px 12px; border: 1px solid #e2e8f0; text-align: left; }
-                        .cell-val { font-weight: 700; font-size: 11pt; text-align: center; padding: 8px 12px; border: 1px solid #e2e8f0; }
-                        
-                        .footer-tag { background-color: #0b2545; color: #ffffff; font-style: italic; font-weight: 700; padding: 8px 15px; font-size: 10.5pt; text-align: left; }
-                        
-                        .dt-head { background-color: #1e293b; color: #ffffff; font-weight: 700; text-align: center; border: 1px solid #334155; padding: 6px; font-size: 9.5pt; }
-                        .dt-cell { font-size: 9.5pt; padding: 5px 8px; border: 1px solid #cbd5e1; }
-                    </style>
-                </head>
-                <body>
-                    <!-- SHEET 1: EXECUTIVE SUMMARY -->
-                    <table>
-                        <tr>
-                            <td class="meta-label" style="width:180px;">📅 Tanggal Laporan</td>
-                            <td class="meta-val" style="width:250px;">: ${dateNowStr}</td>
-                            <td colspan="4"></td>
-                        </tr>
-                        <tr>
-                            <td class="meta-label">👤 Authorized By</td>
-                            <td class="meta-val">: Sabil Amin</td>
-                            <td colspan="4"></td>
-                        </tr>
-                        <tr>
-                            <td class="meta-label">📑 Total File DOM Sumber</td>
-                            <td class="meta-val">: ${domFilesList.length} File</td>
-                            <td colspan="4"></td>
-                        </tr>
-                        
-                        <tr><td colspan="6" style="height:10px;"></td></tr>
-
-                        <!-- SECTION 1: RINGKASAN UTAMA STATUS DELIVERY TO GR -->
-                        <tr>
-                            <td colspan="6" class="banner-title">📊 RINGKASAN UTAMA STATUS DELIVERY TO GR</td>
-                        </tr>
-                        
-                        <tr>
-                            <!-- METRIK INDIKATOR -->
-                            <td colspan="1" class="kpi-card" style="width:20%; background-color:#f1f5f9; border-color:#cbd5e1;">
-                                <div class="kpi-label" style="color:#475569;">METRIK INDIKATOR</div>
-                                <div class="kpi-num" style="color:#0b2545;">${total}</div>
-                                <div style="font-size:8.5pt; color:#64748b; font-style:italic; margin-top:4px;">Total Delivery Items</div>
-                            </td>
-                            <!-- TER-GR (SESUAI) -->
-                            <td colspan="2" class="kpi-card" style="width:35%; background-color:#f0fdf4; border:1px solid #bbf7d0;">
-                                <div class="kpi-label" style="color:#15803d;">JUMLAH TER-GR (Sesuai)</div>
-                                <div class="kpi-num" style="color:#16a34a;">
-                                    ${complete}
-                                    <span class="badge-pct" style="color:#15803d;">${fulfillmentPct.toFixed(2)}%</span>
-                                </div>
-                            </td>
-                            <!-- GR TIDAK SESUAI (SELISIH) -->
-                            <td colspan="1" class="kpi-card" style="width:22%; background-color:#fff1f2; border:1px solid #fecdd3;">
-                                <div class="kpi-label" style="color:#be123c;">GR Tidak Sesuai (Selisih)</div>
-                                <div class="kpi-num" style="color:#dc2626;">
-                                    ${partial}
-                                    <span class="badge-pct" style="color:#dc2626;">${partialPct.toFixed(2)}%</span>
-                                </div>
-                            </td>
-                            <!-- PENDING / OUTSTANDING GR -->
-                            <td colspan="2" class="kpi-card" style="width:23%; background-color:#fffbe6; border:1px solid #fef08a;">
-                                <div class="kpi-label" style="color:#b45309;">Pending / Outstanding GR</div>
-                                <div class="kpi-num" style="color:#d97706;">
-                                    ${pending}
-                                    <span class="badge-pct" style="color:#d97706;">${pendingPct.toFixed(2)}%</span>
-                                </div>
-                            </td>
-                        </tr>
-
-                        <tr><td colspan="6" style="height:14px;"></td></tr>
-
-                        <!-- SECTION 2: TABLE REKAPITULASI PER SITE -->
-                        <tr>
-                            <td colspan="6" class="banner-title">📍 REKAPITULASI & DISTRIBUSI PER SITE / PLANT</td>
-                        </tr>
-                        
-                        <tr>
-                            <th class="tbl-header-bss" style="width:22%; text-align:left; padding-left:12px;">Site Tujuan</th>
-                            <th class="tbl-header-bss" style="width:16%;">Total Delivery</th>
-                            <th class="tbl-header-bss" style="width:18%;">Ter-GR (Sesuai)</th>
-                            <th class="tbl-header-bss" style="width:14%;">Selisih GR</th>
-                            <th class="tbl-header-bss" style="width:14%;">Pending GR</th>
-                            <th class="tbl-header-bss" style="width:16%;">% Fulfillment</th>
-                        </tr>
-                `;
-
-                siteList.forEach((site, idx) => {
-                    const s = siteMap[site];
-                    const pct = s.total > 0 ? (s.complete / s.total) * 100 : 0;
-                    const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
-
-                    excelTemplate += `
-                        <tr style="background-color:${rowBg};">
-                            <td class="cell-site">${site}</td>
-                            <td class="cell-val" style="color:#0f172a;">${s.total}</td>
-                            <td class="cell-val" style="color:#16a34a;">${s.complete}</td>
-                            <td class="cell-val" style="${s.partial > 0 ? 'color:#dc2626; font-weight:800;' : 'color:#94a3b8;'}">${s.partial}</td>
-                            <td class="cell-val" style="${s.pending > 0 ? 'color:#d97706; font-weight:800;' : 'color:#94a3b8;'}">${s.pending}</td>
-                            <td class="cell-val" style="color:#0284c7; font-weight:800;">${pct.toFixed(2)}%</td>
-                        </tr>
-                    `;
-                });
-
-                excelTemplate += `
-                        <tr><td colspan="6" style="height:10px;"></td></tr>
-                        <tr>
-                            <td colspan="6" class="footer-tag">
-                                Together for Better Logistics
-                            </td>
-                        </tr>
-                    </table>
-
-                    <br style="page-break-before:always" />
-
-                    <!-- SHEET 2: DETAIL DATA MATERIAL & GR -->
-                    <table>
-                        <tr>
-                            <th class="dt-head">File DOM Sumber</th>
-                            <th class="dt-head">No. DOM</th>
-                            <th class="dt-head">Document Date</th>
-                            <th class="dt-head">Site Tujuan</th>
-                            <th class="dt-head">Material Number</th>
-                            <th class="dt-head">Nama Material</th>
-                            <th class="dt-head">Qty Kirim</th>
-                            <th class="dt-head">No. GR</th>
-                            <th class="dt-head">Qty GR</th>
-                            <th class="dt-head">Selisih Qty</th>
-                            <th class="dt-head">Status GR</th>
-                            <th class="dt-head">Tgl GR</th>
-                            <th class="dt-head">Lead Time</th>
-                            <th class="dt-head">Konfirmasi Manual</th>
-                        </tr>
-                `;
-
-                processedData.forEach(d => {
-                    excelTemplate += `
-                        <tr>
-                            <td class="dt-cell">${d.sourceDomFile}</td>
-                            <td class="dt-cell" style="font-weight:bold;">${d.noDom}</td>
-                            <td class="dt-cell">${d.tglKirim}</td>
-                            <td class="dt-cell" style="font-weight:bold;">${d.site}</td>
-                            <td class="dt-cell" style="color:#b45309;">${d.matNum || '-'}</td>
-                            <td class="dt-cell">${d.item}</td>
-                            <td class="dt-cell" style="text-align:center; font-weight:bold;">${d.qtyKirim}</td>
-                            <td class="dt-cell" style="text-align:center; color:#16a34a; font-weight:bold;">${d.noGR}</td>
-                            <td class="dt-cell" style="text-align:center; font-weight:bold;">${d.qtyGR}</td>
-                            <td class="dt-cell" style="text-align:center; ${d.selisih !== 0 ? 'color:#dc2626; font-weight:bold;' : ''}">${d.selisih}</td>
-                            <td class="dt-cell" style="text-align:center; font-weight:bold;">${d.statusGR}</td>
-                            <td class="dt-cell" style="text-align:center;">${d.tglGR}</td>
-                            <td class="dt-cell" style="text-align:center;">${d.leadTimeDays}</td>
-                            <td class="dt-cell" style="text-align:center;">${d.manuallyConfirmed ? 'YA' : 'TIDAK'}</td>
-                        </tr>
-                    `;
-                });
-
-                excelTemplate += `
-                    </table>
-                </body>
-                </html>
-                `;
-
-                const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `Monitoring_Delivery_to_GR_${new Date().toISOString().slice(0, 10)}.xls`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-                showToast("Laporan Excel visual (Gambar 1 style + Detail Sheet 2) berhasil diunduh!");
+                const wb = createMultiSheetExcelWorkbook();
+                XLSX.writeFile(wb, `Monitoring_Delivery_to_GR_${new Date().toISOString().slice(0, 10)}.xlsx`);
+                showToast("File laporan Excel (.XLSX) berhasil diunduh!");
             } catch (err) {
-                console.error("Gagal mengekspor laporan Excel:", err);
-                showToast("Terjadi kesalahan saat mengekspor ke Excel.");
-            }
-        }
-
-        function loadFromCloud() {
-            if (window.latestCloudData && window.latestCloudData.length > 0) {
-                const cloudItem = window.latestCloudData.find(d => d.items && d.items.length > 0);
-                if (cloudItem && cloudItem.items) {
-                    processedData = cloudItem.items;
-                    document.getElementById('uploadView').classList.add('hidden');
-                    document.getElementById('dashboardView').classList.remove('hidden');
-                    populateSourceFileDropdown();
-                    renderDashboard();
-                    showToast("Data terbaru berhasil dimuat dari Database Cloud Web!");
-                } else {
-                    showToast("Tidak ada data valid di Database Cloud.");
-                }
-            } else {
-                showToast("Belum ada data tersimpan di Database Cloud.");
+                console.error("Export Error:", err);
+                showToast("Gagal mengunduh file Excel.");
             }
         }
     </script>
